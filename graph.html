@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic SVG Example</title>
+</head>
+<body>
+    <svg id="mySvg" width="400" height="400"> </svg>
+
+    <style>
+      body{
+        --color:black;
+        --bg:white;
+        background-color: var(--bg);
+        color: var(--color);
+      }
+      @media (prefers-color-scheme: dark){
+        body{
+          --color:white;
+          --bg:black;
+        }
+      }
+    </style>
+
+<script>
+
+  var displaysvg = document.getElementById('mySvg');
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', 400);
+  svg.setAttribute('height', 400);
+  svg.setAttribute('viewBox', '0 0 400 400');
+  svg.style.border = '1px solid var(--color)';  
+
+  const center = {x:200, y:200};
+  let nodes = [];
+
+  class Node{
+    constructor(){
+
+      this.x = Math.random() * center.x * 2
+      this.y = Math.random() * center.y * 2
+
+      this.vel = {x:0, y:0};
+      nodes.push(this);
+      this.rotation = this.get_rotation();
+      this.element = document.createElement('polygon');
+      this.display();
+
+      this.element.setAttribute('fill', 'var(--color)');
+      svg.appendChild(this.element);
+      this.principal = null;
+      this.left_edge = null
+      this.right_edge = null
+    }
+
+    display(){
+      this.rotation = this.get_rotation();
+      this.update_verts();
+      let points = this.verts.map(v => `${v.x},${v.y}`).join(' ');
+      this.element.setAttribute('points', points);
+      this.element.setAttribute('cx', Math.round(this.x));
+      this.element.setAttribute('cy', Math.round(this.y));
+    }
+
+    get_rotation(){
+      if (this.principal == null)return 0;
+      let dx = this.principal.x - this.x;
+      let dy = this.principal.y - this.y;
+      return Math.atan2(dy, dx);
+    }
+
+    update_verts(){
+      this.verts = [];
+      let angle = this.rotation;
+      for(let i = 0; i < 3; i++){
+        let x = this.x + 10 * Math.cos(angle);
+        let y = this.y + 10 * Math.sin(angle);
+        this.verts.push({x:Math.round(x), y:Math.round(y)});
+        angle += 2 * Math.PI / 3;
+      }
+    }
+  }
+
+  let edges = [];
+
+  merge_stack = []
+
+  class Edge{
+    constructor(start, end){
+      this.start = start;
+      this.end = end;
+      edges.push(this);
+      this.element = document.createElement('path')
+      this.display();
+      this.element.setAttribute('stroke', 'var(--color)');
+      this.element.setAttribute('fill', 'none');
+      svg.appendChild(this.element);
+
+      for (let port of [this.start, this.end]){
+        if (port.side == MAIN){
+          port.node.principal = this.other(port.node).node;
+        }else if (port.side == RIGHT){
+          port.node.right_edge = this;
+        }else if (port.side == LEFT){
+          port.node.left_edge = this;
+        }
+      }
+      if (this.start.side == MAIN && this.end.side == MAIN) merge_stack.push(this)
+    }
+
+    other(node){return this.start.node == node ? this.end : this.start}
+
+    display(){
+      let start = this.start.node.verts[this.start.side];
+      let end = this.end.node.verts[this.end.side];
+      let start_dir = this.start.node.rotation
+      if (this.start.side != MAIN){
+        start_dir += Math.PI;
+      }
+      let end_dir = this.end.node.rotation;
+      if (this.end.side != MAIN){
+        end_dir += Math.PI;
+      }
+
+      let smooth_weight = Math.sqrt((start.x - end.x)**2 + (start.y - end.y)**2)/2
+
+      let start_x = Math.round(start.x + smooth_weight * Math.cos(start_dir));
+      let start_y = Math.round(start.y + smooth_weight * Math.sin(start_dir));
+      let end_x = Math.round(end.x + smooth_weight * Math.cos(end_dir));
+      let end_y = Math.round(end.y + smooth_weight * Math.sin(end_dir));
+      let d = `M ${start.x} ${start.y} C ${start_x} ${start_y} ${end_x} ${end_y} ${end.x} ${end.y}`;
+      this.element.setAttribute('d', d);
+    }
+  }
+
+  const MAIN = 0
+  const RIGHT = 1
+  const LEFT = 2
+
+  let n1 = new Node(100,100);
+  let n2 = new Node(200,100);
+  let n3 = new Node(150,200);
+  let n4 = new Node(250,200);
+
+
+  new Edge({node:n1, side:MAIN}, {node:n2, side:MAIN});
+  new Edge({node:n3, side:MAIN}, {node:n1, side:LEFT});
+  new Edge({node:n4, side:MAIN}, {node:n2, side:LEFT});
+
+  new Edge({node:n3, side:RIGHT}, {node:n4, side:LEFT});
+  new Edge({node:n3, side:LEFT}, {node:n4, side:RIGHT});
+  new Edge({node:n2, side:RIGHT}, {node:n1, side:RIGHT});
+  
+  function attract(node, center, force, pow=0){
+    let dx = center.x - node.x;
+    let dy = center.y - node.y;
+    let sdist = dx*dx + dy*dy;
+    let angle = Math.atan2(dy, dx);
+    force = force/Math.pow(sdist, pow);
+    
+    node.vel.x += force * Math.cos(angle);
+    node.vel.y += force * Math.sin(angle);
+  }
+  function physics(){
+    const damp = 0.9;
+
+    for (node of nodes){
+      node.vel = {x:node.vel.x * damp, y:node.vel.y * damp};
+
+      attract(node, center, 0.1, 1.5);
+      for (n of nodes){
+        if (n == node) continue
+        attract(node, {x:n.x, y:n.y}, -100., 1.);
+
+      }
+    }
+    for (e of edges){
+
+      let port = e.end.node.verts[e.end.side];
+      attract(e.start.node, {x:port.x, y:port.y}, 0.1);
+
+      port = e.start.node.verts[e.start.side];
+      attract(e.end.node, {x:port.x, y:port.y}, 0.1);
+    }
+    let merge = merge_stack[0];
+    if (merge == undefined) return;
+
+    let merge_center = {x:(merge.start.node.x + merge.end.node.x)/2, y:(merge.start.node.y + merge.end.node.y)/2};
+    dist = Math.sqrt((merge.start.node.x - merge.end.node.x)**2 + (merge.start.node.y - merge.end.node.y)**2);
+    if (dist < 10){
+
+      let a = merge.start.node
+      let b = merge.end.node;
+      let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
+
+      edges = edges.filter(e=> !garbage.includes(e));
+      nodes = nodes.filter(n => n != a && n != b);
+
+      function check(x){return !garbage.includes(x)}
+
+      let al = a.left_edge.other(a);
+      let ar = a.right_edge.other(a);
+      let bl = b.left_edge.other(b);
+      let br = b.right_edge.other(b);
+
+      merge_stack.shift();
+      if (check(al.node) && check(bl.node)) new Edge(al, bl);
+      if (check(bl.node) && check(br.node)) new Edge(bl, br);
+
+      for (let el of garbage) el.element.remove();
+      console.log(merge_stack)
+    }
+
+    for (node of nodes){
+      if (merge != undefined){
+        let merge_center = {x:(merge.start.node.x + merge.end.node.x)/2, y:(merge.start.node.y + merge.end.node.y)/2};
+        if (node == merge.start.node|| node == merge.end.node){
+          node.vel.x = 0;
+          node.vel.y = 0;
+          attract(node, merge_center, 1.);
+        }
+      }
+      node.vel.x = Math.min(2, Math.max(-2, node.vel.x));
+      node.vel.y = Math.min(2, Math.max(-2, node.vel.y));
+      node.x += node.vel.x;
+      node.y += node.vel.y;
+    }
+  }
+
+  function display(){
+    physics();
+    for (node of nodes)node.display();
+    for (e of edges)e.display();
+    displaysvg.innerHTML = svg.innerHTML;
+  }
+
+  setInterval(display, 1000/30);
+
+</script>
+</body>
+
+</html>
