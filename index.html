@@ -171,17 +171,16 @@
       attract(node, center, 0.1, 1.5);
       for (n of nodes){
         if (n == node) continue
-        attract(node, {x:n.x, y:n.y}, -100., 1.);
-
+        attract(node, {x:n.x, y:n.y}, -10., 1.);
       }
     }
     for (e of edges){
 
       let port = e.end.node.verts[e.end.side];
-      attract(e.start.node, {x:port.x, y:port.y}, 0.1);
+      attract(e.start.node, {x:port.x, y:port.y}, 0.01);
 
       port = e.start.node.verts[e.start.side];
-      attract(e.end.node, {x:port.x, y:port.y}, 0.1);
+      attract(e.end.node, {x:port.x, y:port.y}, 0.01);
     }
     let merge = merge_stack[0];
     if (merge == undefined) return;
@@ -228,16 +227,24 @@
     }
   }
 
+  let running = true;
+
   function display(){
+    if (!running) return;
     physics();
     for (node of nodes)node.display();
     for (e of edges)e.display();
     displaysvg.innerHTML = svg.innerHTML;
   }
-
+  display();
   setInterval(display, 1000/30);
 
+
+
 </script>
+
+<button onclick="running = !running"> play/pause</button>
+
 </body>
 
 </html>
