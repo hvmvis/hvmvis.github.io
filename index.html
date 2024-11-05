@@ -376,6 +376,19 @@
   displaysvg.addEventListener('mousedown',e=>{
     drag_target = node_by_id(e.target.id);
   })
+
+  displaysvg.addEventListener('mousemove', e=>{
+    if (drag_target != null){
+      drag_target.x = e.offsetX;
+      drag_target.y = e.offsetY;
+      drag_target.vel = {x:0, y:0};
+      display();
+    }
+  })
+
+  displaysvg.addEventListener('mouseup', e=>{
+    drag_target = null;
+  })
   document.addEventListener("keydown", e=>{
     if (e.code=='Space')running = !running
   })
