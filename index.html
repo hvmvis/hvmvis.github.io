@@ -259,9 +259,10 @@
   const closes = [')', '}', ']'];
 
   function reset(){
-    codeblock.innerText = `@main = x
-  & x ~ ((c d) b)
-  & {b f} ~ {y z}`
+    codeblock.innerText = `@main = res
+  & (fn (z res)) ~ dub
+  & fn ~ (x x)
+  & dub ~ ({(a b) (b R)} (a R))`
   }
 
   function build_tree(term, vartable){
