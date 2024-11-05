@@ -1,7 +1,6 @@
 
 # Interaction Net simulator
 
-
 ![Net Visualization](net.svg)
 
 pure html/js visualisation of the Interaction Nets, see [victor](https://gist.github.com/VictorTaelin) [taelin](https://x.com/victorTaelin) for explanations
