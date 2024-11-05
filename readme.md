@@ -3,7 +3,7 @@
 
 ![Net Visualization](net.svg)
 
-pure html/js visualisation of the Interaction Nets, see [victor](https://gist.github.com/VictorTaelin) [taelin](https://x.com/victorTaelin) for explanations
+pure html/js visualisation of Interaction Combinators, see [victor](https://gist.github.com/VictorTaelin) [taelin](https://x.com/victorTaelin) for explanations
 
 visit: https://dkormann.com/HVM_vis to try it out
 
