@@ -6,10 +6,8 @@
     <title>INTERACTION NETS</title>
 </head>
 <body>
-    <svg id="mySvg" width="600" height="600"> </svg>
-
+    <svg id="mySvg"> </svg>
     <button onclick="running = !running"> PAUSE (space)</button>
-
 
     <div id = codeblock contenteditable>
 @main = x
@@ -31,7 +29,6 @@
       }
       #codeblock{
         font-family: monospace;
-
         white-space: pre-wrap;
       }
     </style>
@@ -55,10 +52,13 @@
 
   var displaysvg = document.getElementById('mySvg');
 
+  displaysvg.setAttribute('width', window.innerWidth);
+  displaysvg.setAttribute('height', window.innerHeight);
+
   var edge_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   var node_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
-  const center = {x:200, y:200};
+  const center = {x:displaysvg.clientWidth/2, y:displaysvg.clientHeight/2};
   let nodes = [];
 
   class Node{
@@ -76,7 +76,7 @@
       this.element = document.createElement('polygon');
       this.display();
 
-      this.element.setAttribute('fill', type==DUP? 'var(--bg)':'var(--color)');
+      this.color()
       this.element.setAttribute('stroke', 'var(--color)');
       this.element.id = this.id;
 
@@ -87,7 +87,7 @@
     }
 
     color(active=false){
-      this.element.setAttribute('fill', active? 'red': this.type==DUP? 'var(--bg)':'var(--color)');
+      this.element.setAttribute('fill', active? 'red': this.type==DUP? 'black':'white');
       for (let e of [this.principal, this.left_edge, this.right_edge]){
         if (e != null) e.color(active);
       }
@@ -154,6 +154,13 @@
 
     color(active = false){
       this.element.setAttribute('stroke', active? 'red':'var(--color)');
+      
+
+      
+      if (this.start.node.principal == this && this.end.node.principal == this && active && merge_stack[0] != this){
+        merge_stack[merge_stack.indexOf(this)] = merge_stack[0];
+        merge_stack[0] = this;
+      }
     }
 
     other(node){return this.start.node == node ? this.end : this.start}
@@ -189,13 +196,12 @@
   let yl = new Node(type=SUP);
   let yr = new Node(type=SUP);
 
-
   new Edge({node:x, side:MAIN}, {node:y, side:MAIN});
-  new Edge({node:x, side:LEFT}, {node:xl, side:MAIN});
+
   new Edge({node:x, side:RIGHT}, {node:xr, side:MAIN});
   new Edge({node:y, side:LEFT}, {node:yl, side:MAIN});
-  new Edge({node:y, side:RIGHT}, {node:yr, side:MAIN});
 
+  new Edge({node:x, side:LEFT}, {node:y, side:RIGHT});
 
   function attract(node, center, force, pow=0){
     let dx = center.x - node.x;
@@ -250,15 +256,14 @@
 
     merge_stack.shift();
 
-
     let AL = new Node(type= b.type, x = a.x+10, y = a.y);
     let AR = new Node(type= b.type, x = a.x, y = a.y+10);
     let BL = new Node(type= a.type, x = b.x+10, y = b.y);
     let BR = new Node(type= a.type, x = b.x, y = b.y+10);
 
-
-
     if (al.node == b){
+      console.log('alb');
+      
       if (bl.node == a){
         new Edge({node:AL, side:MAIN}, {node:BL, side:MAIN});
         new Edge(br, {node:BR, side:MAIN});
@@ -278,7 +283,7 @@
       }
     }
 
-    if (ar.node == a){
+    if (ar.node == a){      
       new Edge({node:AL, side:MAIN}, {node:AR, side:MAIN});
     }
     if (br.node == b){
@@ -366,15 +371,13 @@
     }
   }
 
-  displaysvg.addEventListener('click',e=>{
+  displaysvg.addEventListener('mousedown',e=>{
+    drag_target = node_by_id(e.target.id);
     if (last_target != null) last_target.color(false);
     last_target = node_by_id(e.target.id);
     if (last_target != null) last_target.color(true);
     display();
-  })
 
-  displaysvg.addEventListener('mousedown',e=>{
-    drag_target = node_by_id(e.target.id);
   })
 
   displaysvg.addEventListener('mousemove', e=>{
@@ -397,7 +400,5 @@
 
 </script>
 
-
 </body>
-
 </html>
