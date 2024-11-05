@@ -40,6 +40,21 @@
 
 <script>
 
+
+  const MAIN = 0
+  const RIGHT = 1
+  const LEFT = 2
+
+  const VAR = 0
+  const SUB = 1
+  const APP = 2
+  const DUP = 3
+  const ERA = 4
+  const LAM = 5
+  const SUP = 6
+  const NUL = 7
+
+
   var displaysvg = document.getElementById('mySvg');
 
   var edge_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -49,13 +64,13 @@
   let nodes = [];
 
   class Node{
-    constructor(type = DUP){
-      console.log(type);
-      
+    constructor(type = DUP, x = null, y=null){
+
+      this.id = Math.random().toString().slice(2);
       this.type = type
 
-      this.x = Math.random() * center.x + center.x/2
-      this.y = Math.random() * center.y + center.y/2
+      this.x = x==null? Math.random() * center.x + center.x/2 : x;
+      this.y = y==null? Math.random() * center.y + center.y/2 : y;
 
       this.vel = {x:0, y:0};
       nodes.push(this);
@@ -65,13 +80,23 @@
 
       this.element.setAttribute('fill', type==DUP? 'var(--bg)':'var(--color)');
       this.element.setAttribute('stroke', 'var(--color)');
-      this.element.setAttribute('style', 'z-index: 10');
+      this.element.id = this.id;
 
       node_group.appendChild(this.element);
       this.principal = null;
       this.left_edge = null
       this.right_edge = null
     }
+
+    color(active=false){
+      let color = active? 'red': this.type==DUP? 'var(--bg)':'var(--color)';
+      this.element.setAttribute('fill', color);
+      displaysvg.getElementById(this.id).setAttribute('fill', color);
+      for (let e of [this.principal, this.left_edge, this.right_edge]){
+        if (e != null) e.color(active);
+      }
+    }
+
 
     display(){
       this.rotation = this.get_rotation();
@@ -84,8 +109,9 @@
 
     get_rotation(){
       if (this.principal == null)return 0;
-      let dx = this.principal.x - this.x;
-      let dy = this.principal.y - this.y;
+      let target = this.principal.other(this).node;
+      let dx = target.x - this.x;
+      let dy = target.y - this.y;
       return Math.atan2(dy, dx);
     }
 
@@ -107,18 +133,20 @@
 
   class Edge{
     constructor(start, end){
+      this.id = Math.random().toString().slice(2);
       this.start = start;
       this.end = end;
       edges.push(this);
       this.element = document.createElement('path')
+      this.element.id = this.id;
       this.display();
-      this.element.setAttribute('stroke', 'var(--color)');
+      this.color();
       this.element.setAttribute('fill', 'none');
       edge_group.appendChild(this.element);
 
       for (let port of [this.start, this.end]){
         if (port.side == MAIN){
-          port.node.principal = this.other(port.node).node;
+          port.node.principal = this;
         }else if (port.side == RIGHT){
           port.node.right_edge = this;
         }else if (port.side == LEFT){
@@ -126,6 +154,11 @@
         }
       }
       if (this.start.side == MAIN && this.end.side == MAIN) merge_stack.push(this)
+    }
+
+    color(active = false){
+      this.element.setAttribute('stroke', active? 'red':'var(--color)');
+      displaysvg.getElementById(this.id)?.setAttribute('stroke', active? 'red':'var(--color)');
     }
 
     other(node){return this.start.node == node ? this.end : this.start}
@@ -153,33 +186,21 @@
     }
   }
 
-  const MAIN = 0
-  const RIGHT = 1
-  const LEFT = 2
+  let x = new Node(type=DUP);
+  let y = new Node(type=SUP);
+  
+  let xr = new Node(type=SUP);
+  let xl = new Node(type=SUP);
+  let yl = new Node(type=SUP);
+  let yr = new Node(type=SUP);
 
-  const VAR = 0
-  const SUB = 1
-  const APP = 2
-  const DUP = 3
-  const ERA = 4
-  const LAM = 5
-  const SUP = 6
-  const NUL = 7
 
-  let n1 = new Node(DUP);
-  let n2 = new Node(SUP);
-  let n3 = new Node(SUP);
-  let n4 = new Node(SUP);
+  new Edge({node:x, side:MAIN}, {node:y, side:MAIN});
+  new Edge({node:x, side:LEFT}, {node:xl, side:MAIN});
+  new Edge({node:x, side:RIGHT}, {node:xr, side:MAIN});
+  new Edge({node:y, side:LEFT}, {node:yl, side:MAIN});
+  new Edge({node:y, side:RIGHT}, {node:yr, side:MAIN});
 
-  console.log(n1, n2, n3, n4);
-
-  new Edge({node:n1, side:MAIN}, {node:n2, side:MAIN});
-  new Edge({node:n3, side:MAIN}, {node:n1, side:LEFT});
-  new Edge({node:n4, side:MAIN}, {node:n2, side:LEFT});
-
-  new Edge({node:n3, side:RIGHT}, {node:n4, side:LEFT});
-  new Edge({node:n3, side:LEFT}, {node:n4, side:RIGHT});
-  new Edge({node:n2, side:RIGHT}, {node:n1, side:RIGHT});
 
   function attract(node, center, force, pow=0){
     let dx = center.x - node.x;
@@ -235,10 +256,12 @@
     merge_stack.shift();
 
 
-    let AL = new Node(b.type);
-    let AR = new Node(b.type)
-    let BL = new Node(a.type);
-    let BR = new Node(a.type);
+    let AL = new Node(type= b.type, x = a.x+10, y = a.y);
+    let AR = new Node(type= b.type, x = a.x, y = a.y+10);
+    let BL = new Node(type= a.type, x = b.x+10, y = b.y);
+    let BR = new Node(type= a.type, x = b.x, y = b.y+10);
+
+
 
     if (al.node == b){
       if (bl.node == a){
@@ -278,9 +301,7 @@
     new Edge({node:AR, side:LEFT}, {node:BL, side:RIGHT});
     new Edge({node:AR, side:RIGHT}, {node:BR, side:RIGHT});
     
-
     for (let el of garbage) el.element.remove();
-
   }
 
   function physics(){
@@ -338,6 +359,18 @@
     displaysvg.innerHTML = edge_group.outerHTML + node_group.outerHTML;
   }
   display();
+
+  last_target = null;
+
+  displaysvg.addEventListener('click',e=>{
+    if (last_target != null) last_target.color(false);
+    for (let node of nodes){
+      if (String(node.id) == e.target.id){
+        node.color(true);
+        last_target = node;
+      }
+    }
+  })
   setInterval(display, 1000/30);
 
 
