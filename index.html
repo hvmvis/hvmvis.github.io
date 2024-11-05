@@ -9,12 +9,14 @@
     <svg id="mySvg" xmlns="http://www.w3.org/2000/svg">
 
     </svg>
+
+    <button onclick="restart()">RESTART</button>
     <button onclick="running = !running"> PAUSE (space)</button>
 
     <div id = codeblock contenteditable>
 @main = x
   & x ~ ((c d) b)
-  & b ~ {x z}
+  & {b f} ~ {y z}
     
     </div>
 
@@ -197,14 +199,16 @@
           port.node.left_edge = this;
         }
       }
-      if (this.start.side == MAIN && this.end.side == MAIN) merge_stack.push(this)
+      if (this.start.side == MAIN && this.end.side == MAIN && this.start.node.type != OUT && this.end.node.type != OUT){
+        merge_stack.push(this)
+      } 
     }
 
     color(active = false){
       this.element.setAttribute('stroke', active? 'red':'var(--color)');
-      
-      if (this.start.node.principal == this && this.end.node.principal == this && active && merge_stack[0] != this){
-        merge_stack[merge_stack.indexOf(this)] = merge_stack[0];
+      let idx = merge_stack.indexOf(this);
+      if (idx != -1){
+        merge_stack[idx] = merge_stack[0];
         merge_stack[0] = this;
       }
     }
@@ -233,7 +237,6 @@
       let end_y = Math.round(end.y + smooth_weight * Math.sin(end_dir));
 
       let d = `M ${start.x} ${start.y} C ${start_x} ${start_y} ${end_x} ${end_y} ${end.x} ${end.y}`;
-      
       this.element.setAttribute('d', d);
     }
   }
@@ -241,51 +244,46 @@
 
   function parse_code(code){
     
-
     let lines = code.replace(/\n/g, '&').split('&').filter(l=>l.trim() != '');
     let main = lines[0]
     lines = lines.slice(1);
-    let vartable = new Map();
-    vartable['main'] = new Terminal(type=OUT);
 
-    for (let line of lines){
+    let vartable = new Map();    
+
+    let t0 = build_tree(main.split('=')[1].trim(), vartable);
+    new Edge(t0, {node:new Terminal(type=OUT), side:MAIN});
+
+    for (let line of lines){ 
+      console.log(line);
       let parts = line.split('~').map(l=>l.trim());
-      bridge(parts[0], parts[1], vartable);
+      let tree1 = build_tree(parts[0], vartable);
+      let tree2 = build_tree(parts[1], vartable);
+      new Edge(tree1, tree2);
     }
-  }
-
-  function bridge(a,b, vartable){
-    let tree1 = build_tree(a, vartable);
-    let tree2 = build_tree(b, vartable);
-    new Edge({node:tree1, side:MAIN}, {node:tree2, side:MAIN});
   }
 
   const opens = ['(', '{', '['];
   const closes = [')', '}', ']'];
 
-
   function build_tree(term, vartable){
-
-    term = term.trim();
+    term = term.trim();    
     if (!opens.includes(term[0])){
-      console.log("ATOM",`|${term}|`);
-      
       if (vartable.has(term)){
-        term = vartable[term];
-        return term;
+        let nd = vartable.get(term);
+        clear([nd.principal, nd]);
+        return nd.principal.other(nd);
       }else{
         let nd = new Terminal(type=VAR);
-        vartable[term] = nd;
-        return nd;
+        vartable.set(term, nd);
+        return {node:nd, side:MAIN};
       }
     }
-    console.log("TERM",`|${term}|`);
 
     if (!(opens.includes(term[0]) && [')', '}'].includes(term[term.length-1])))console.error('error:', term)
     let nd = new Node(type=term[0] == '(' ? SUP : DUP)
     term = term.slice(1, -1);
     let ctr = 0;
-    stack = ''
+    let stack = ''
 
     for (let c of term){
       stack += c;
@@ -295,13 +293,17 @@
         if (ctr == 0) break
       }
     }
-    stackb = term.slice(stack.length);
-    new Edge({node:build_tree(stack, vartable), side:MAIN}, {node:nd, side:LEFT});
-    new Edge({node:build_tree(stackb, vartable), side:MAIN}, {node:nd, side:RIGHT});
-    return nd
+    let stackb = term.slice(stack.length);
+    new Edge({node: nd, side: LEFT}, build_tree(stack, vartable));
+    new Edge({node: nd, side: RIGHT}, build_tree(stackb, vartable));
+    return {node:nd, side:MAIN};
   }
   
-  parse_code(codeblock.innerText);
+  function restart(){
+    clear([...edges, ...nodes]);
+    parse_code(codeblock.innerText);
+    display();
+  }
 
   function attract(node, center, force, pow=0){
     let dx = center.x - node.x;
@@ -318,6 +320,7 @@
     for (let el of garbage) el.element.remove();
     edges = edges.filter(e=> !garbage.includes(e));
     nodes = nodes.filter(n => !garbage.includes(n));
+    merge_stack = merge_stack.filter(m => !garbage.includes(m));
   }
 
   function annihilate(merge){
@@ -355,7 +358,6 @@
       new Edge(ar, br);
     }
 
-    merge_stack.shift();
   }
 
   function commute(merge){
@@ -371,8 +373,6 @@
     let ar = a.right_edge.other(a);
     let bl = b.left_edge.other(b);
     let br = b.right_edge.other(b);
-
-    merge_stack.shift();
 
     let AL = new Node(type= b.type, x = a.x+10, y = a.y);
     let AR = new Node(type= b.type, x = a.x, y = a.y+10);
@@ -419,26 +419,16 @@
   }
 
   function _void(merge){
-    let a = merge.start.node
-    let b = merge.end.node;
-    let garbage = [merge, a, b]
-
-    for (let el of garbage) el.element.remove();
-    edges = edges.filter(e=> !garbage.includes(e));
-    nodes = nodes.filter(n => n != a && n != b);
-    merge_stack.shift();
+    clear([merge, merge.start.node, merge.end.node]);
   }
 
   function erase(node, term){
-    console.log('erase');
     
     garbage = [node, node.left_edge, node.right_edge, term.principal, term];
     edges = edges.filter(e=> !garbage.includes(e));
     nodes = nodes.filter(n => n != node);
-    console.log(garbage);
-    
-    for (let el of garbage) el.element.remove();
 
+    clear(garbage)
 
     l = node.left_edge.other(node);
     r = node.right_edge.other(node);
@@ -450,7 +440,7 @@
 
     new Edge(l, {node:term1, side:MAIN});
     new Edge(r, {node:term2, side:MAIN});
-    merge_stack.shift();
+
   }
 
   function physics(){
@@ -478,26 +468,16 @@
 
     let merge_center = {x:(merge.start.node.x + merge.end.node.x)/2, y:(merge.start.node.y + merge.end.node.y)/2};
     dist = Math.sqrt((merge.start.node.x - merge.end.node.x)**2 + (merge.start.node.y - merge.end.node.y)**2);
-    if (dist < 10){
-      console.log(merge);
 
+    if (dist < 10){
       if (merge.start.node instanceof Node){
         if (merge.end.node instanceof Node){
-          if (merge.start.node.type == merge.end.node.type){
-            annihilate(merge);
-          }else{
-            commute(merge);
-          }
-        }else{
-          erase(merge.start.node, merge.end.node);
-        }
+          if (merge.start.node.type == merge.end.node.type)annihilate(merge);
+          else commute(merge);
+        } else erase(merge.start.node, merge.end.node);
       }else{
-        
-        if (merge.end.node instanceof Node){
-          erase(merge.end.node, merge.start.node);
-        }else{
-          _void(merge)
-        }
+        if (merge.end.node instanceof Node) erase(merge.end.node, merge.start.node);
+        else _void(merge)
       }
     }
 
@@ -531,7 +511,6 @@
     for (node of nodes) node.display();
     displaysvg.innerHTML = edge_group.outerHTML + node_group.outerHTML;
   }
-  display();
 
   function node_by_id(id){
     for (let node of nodes){
@@ -563,7 +542,9 @@
     if (e.code=='Space')running = !running
     if (e.code=='KeyE' && e.metaKey)export_svg();
   })
+  restart();
   setInterval(update, 1000/30);
+
 
 
 
@@ -579,6 +560,8 @@
     a.href = url;    
     a.click();
   }
+
+
 
 </script>
 
