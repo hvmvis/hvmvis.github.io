@@ -81,7 +81,7 @@
     }
 
     color(active){
-      this.element.setAttribute('fill', active?'red': this.type == ERA? 'black':'white');
+      this.element.setAttribute('fill', active ? 'red': this.type == OUT? 'black':'white');
       if (this.principal)this.principal.color(active);
     }
 
