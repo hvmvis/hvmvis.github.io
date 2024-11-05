@@ -11,7 +11,7 @@
     </svg>
     <button onclick="reset()">RESET</button>
     <button onclick="restart()">RESTART</button>
-    <button onclick="running = !running"> PAUSE (space)</button>
+    <button onclick="running = !running; displaysvg.focus()"> PAUSE (space)</button>
 
     <div id = codeblock contenteditable style="padding-bottom: 2em;"></div>
 
@@ -267,7 +267,7 @@
   // & fn ~ (x x)
   // & dub ~ ({(a b) (b R)} (a R))`
   codeblock.innerText = `@main = res
-  & (a b) ~ {a d}`
+  & {res a} ~ {u v}`
   }
 
   function build_tree(term, vartable){
@@ -308,6 +308,8 @@
   function restart(){
     clear([...edges, ...nodes]);
     parse_code(codeblock.innerText);
+    update();
+    display();
     display();
   }
 
@@ -342,12 +344,13 @@
     let a = merge.start.node
     let b = merge.end.node;
     let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
-    clear(garbage);
-
+    
     let al = a.left_edge.other(a);
     let ar = a.right_edge.other(a);
     let bl = b.left_edge.other(b);
     let br = b.right_edge.other(b);
+
+    clear(garbage);
 
     if (al.node == a){
       if (bl.node != b){
@@ -551,12 +554,15 @@
     drag_target = null;
   })
   document.addEventListener("keydown", e=>{
-    if (e.code=='Space')running = !running
+    if (e.code=='Space'){
+      running = !running
+    }
     if (e.code=='KeyE' && e.metaKey)export_svg();
   })
 
   reset();
   restart();
+
   setInterval(update, 1000/30);
 
   function export_svg(){
