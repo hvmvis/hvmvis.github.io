@@ -11,10 +11,12 @@
     </svg>
     <button onclick="running = !running"> PAUSE (space)</button>
 
-    <!-- <div id = codeblock contenteditable>
+    <div id = codeblock contenteditable>
 @main = x
-  & {x y} ~ (a b)
-    </div> -->
+  & x ~ ((c d) b)
+  & b ~ {x z}
+    
+    </div>
 
     <style>
       body{
@@ -52,8 +54,9 @@
   const SUP = 6
   const NUL = 7
 
-
   var displaysvg = document.getElementById('mySvg');
+  var codeblock = document.getElementById('codeblock');
+
 
   displaysvg.setAttribute('width', window.innerWidth);
   displaysvg.setAttribute('height', window.innerHeight);
@@ -85,6 +88,7 @@
 
     color(active){
       this.element.setAttribute('fill', active?'red': this.type == ERA? 'black':'white');
+      if (this.principal)this.principal.color(active);
     }
 
     get_rotation(){
@@ -235,48 +239,69 @@
   }
 
 
-  // let t1 = new Terminal(type=ERA);
-  // let t2 = new Terminal(type=ERA);
-  // let t3 = new Terminal(type=ERA);
+  function parse_code(code){
+    
 
-  // let n = new Node(type=DUP);
+    let lines = code.replace(/\n/g, '&').split('&').filter(l=>l.trim() != '');
+    let main = lines[0]
+    lines = lines.slice(1);
+    let vartable = new Map();
+    vartable['main'] = new Terminal(type=OUT);
 
-  // new Edge({node:n, side:MAIN}, {node:t1, side:MAIN});
-  // new Edge({node:n, side:RIGHT}, {node:t2, side:MAIN});
-  // new Edge({node:n, side:LEFT}, {node:t3, side:MAIN});
+    for (let line of lines){
+      let parts = line.split('~').map(l=>l.trim());
+      bridge(parts[0], parts[1], vartable);
+    }
+  }
+
+  function bridge(a,b, vartable){
+    let tree1 = build_tree(a, vartable);
+    let tree2 = build_tree(b, vartable);
+    new Edge({node:tree1, side:MAIN}, {node:tree2, side:MAIN});
+  }
+
+  const opens = ['(', '{', '['];
+  const closes = [')', '}', ']'];
 
 
+  function build_tree(term, vartable){
 
-  let t1 = new Terminal(type=ERA);
-  let t2 = new Terminal(type=OUT);
-  let t3 = new Terminal(type=ERA);
-  let t4 = new Terminal(type=ERA);
+    term = term.trim();
+    if (!opens.includes(term[0])){
+      console.log("ATOM",`|${term}|`);
+      
+      if (vartable.has(term)){
+        term = vartable[term];
+        return term;
+      }else{
+        let nd = new Terminal(type=VAR);
+        vartable[term] = nd;
+        return nd;
+      }
+    }
+    console.log("TERM",`|${term}|`);
 
-  let x = new Node(type=DUP);
-  let y = new Node(type=SUP);
+    if (!(opens.includes(term[0]) && [')', '}'].includes(term[term.length-1])))console.error('error:', term)
+    let nd = new Node(type=term[0] == '(' ? SUP : DUP)
+    term = term.slice(1, -1);
+    let ctr = 0;
+    stack = ''
 
-
-  new Edge({node:x, side:MAIN}, {node:y, side:MAIN});
-  new Edge({node:x, side:RIGHT}, {node:t1, side:MAIN});
-  new Edge({node:x, side:LEFT}, {node:t2, side:MAIN});
-  new Edge({node:y, side:LEFT}, {node:t3, side:MAIN});
-  new Edge({node:y, side:RIGHT}, {node:t4, side:MAIN});
+    for (let c of term){
+      stack += c;
+      if (opens.includes(c)) ctr+=1;
+      if (closes.includes(c)) ctr-=1;
+      if (closes.includes(c) || c == ' '){
+        if (ctr == 0) break
+      }
+    }
+    stackb = term.slice(stack.length);
+    new Edge({node:build_tree(stack, vartable), side:MAIN}, {node:nd, side:LEFT});
+    new Edge({node:build_tree(stackb, vartable), side:MAIN}, {node:nd, side:RIGHT});
+    return nd
+  }
   
-  // let xr = new Node(type=SUP);
-  // // let xl = new Node(type=SUP);
-  // let yl = new Node(type=DUP);
-  // // let yr = new Node(type=SUP);
-
-  // new Edge({node:x, side:MAIN}, {node:y, side:MAIN});
-  // new Edge({node:x, side:RIGHT}, {node:xr, side:MAIN});
-  // new Edge({node:y, side:LEFT}, {node:yl, side:MAIN});
-  // new Edge({node:x, side:LEFT}, {node:y, side:RIGHT});
-  
-  // new Edge({node:xr, side:LEFT}, {node:t1, side:MAIN});
-  // new Edge({node:xr, side:RIGHT}, {node:t2, side:MAIN});
-  // new Edge({node:yl, side:LEFT}, {node:t3, side:MAIN});
-  // new Edge({node:yl, side:RIGHT}, {node:t4, side:MAIN});
-
+  parse_code(codeblock.innerText);
 
   function attract(node, center, force, pow=0){
     let dx = center.x - node.x;
