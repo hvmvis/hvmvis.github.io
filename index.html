@@ -41,11 +41,9 @@
 <script>
 
   var displaysvg = document.getElementById('mySvg');
-  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', 400);
-  svg.setAttribute('height', 400);
-  svg.setAttribute('viewBox', '0 0 400 400');
-  svg.style.border = '1px solid var(--color)';  
+
+  var edge_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  var node_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
   const center = {x:200, y:200};
   let nodes = [];
@@ -69,7 +67,7 @@
       this.element.setAttribute('stroke', 'var(--color)');
       this.element.setAttribute('style', 'z-index: 10');
 
-      svg.appendChild(this.element);
+      node_group.appendChild(this.element);
       this.principal = null;
       this.left_edge = null
       this.right_edge = null
@@ -116,7 +114,7 @@
       this.display();
       this.element.setAttribute('stroke', 'var(--color)');
       this.element.setAttribute('fill', 'none');
-      svg.appendChild(this.element);
+      edge_group.appendChild(this.element);
 
       for (let port of [this.start, this.end]){
         if (port.side == MAIN){
@@ -159,7 +157,6 @@
   const RIGHT = 1
   const LEFT = 2
 
-
   const VAR = 0
   const SUB = 1
   const APP = 2
@@ -170,7 +167,7 @@
   const NUL = 7
 
   let n1 = new Node(DUP);
-  let n2 = new Node(DUP);
+  let n2 = new Node(SUP);
   let n3 = new Node(SUP);
   let n4 = new Node(SUP);
 
@@ -216,7 +213,73 @@
     if (check(bl.node) && check(br.node)) new Edge(bl, br);
 
     for (let el of garbage) el.element.remove();
-    console.log(merge_stack)
+
+  }
+
+  function commute(merge){
+
+    let a = merge.start.node
+    let b = merge.end.node;
+    let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
+
+    edges = edges.filter(e=> !garbage.includes(e));
+    nodes = nodes.filter(n => n != a && n != b);
+
+    function check(x){return !garbage.includes(x)}
+
+    let al = a.left_edge.other(a);
+    let ar = a.right_edge.other(a);
+    let bl = b.left_edge.other(b);
+    let br = b.right_edge.other(b);
+
+    merge_stack.shift();
+
+
+    let AL = new Node(b.type);
+    let AR = new Node(b.type)
+    let BL = new Node(a.type);
+    let BR = new Node(a.type);
+
+    if (al.node == b){
+      if (bl.node == a){
+        new Edge({node:AL, side:MAIN}, {node:BL, side:MAIN});
+        new Edge(br, {node:BR, side:MAIN});
+      }else{
+        new Edge({node:AL, side:MAIN}, {node:BR, side:MAIN});
+        new Edge(bl, {node:BL, side:MAIN});
+      }
+    }
+
+    if (ar.node == b){
+      if (bl.node == a){
+        new Edge({node:AR, side:MAIN}, {node:BL, side:MAIN});
+        new Edge(br, {node:BR, side:MAIN});
+      }else{
+        new Edge({node:AR, side:MAIN}, {node:BR, side:MAIN});
+        new Edge(bl, {node:BL, side:MAIN});
+      }
+    }
+
+    if (ar.node == a){
+      new Edge({node:AL, side:MAIN}, {node:AR, side:MAIN});
+    }
+    if (br.node == b){
+      new Edge({node:BL, side:MAIN}, {node:BR, side:MAIN});
+    }
+
+    if (check (al.node)) new Edge(al, {node:AL, side:MAIN});
+    if (check (ar.node)) new Edge(ar, {node:AR, side:MAIN});
+    if (check (bl.node)) new Edge(bl, {node:BL, side:MAIN});
+    if (check (br.node)) new Edge(br, {node:BR, side:MAIN});
+    
+
+    new Edge({node:AL, side:LEFT}, {node:BL, side:LEFT});
+    new Edge({node:AL, side:RIGHT}, {node:BR, side:LEFT});
+    new Edge({node:AR, side:LEFT}, {node:BL, side:RIGHT});
+    new Edge({node:AR, side:RIGHT}, {node:BR, side:RIGHT});
+    
+
+    for (let el of garbage) el.element.remove();
 
   }
 
@@ -246,7 +309,7 @@
     let merge_center = {x:(merge.start.node.x + merge.end.node.x)/2, y:(merge.start.node.y + merge.end.node.y)/2};
     dist = Math.sqrt((merge.start.node.x - merge.end.node.x)**2 + (merge.start.node.y - merge.end.node.y)**2);
     if (dist < 10){
-      erase(merge)
+      (merge.start.node.type == merge.end.node.type ? erase : commute)(merge) 
     }
 
     for (node of nodes){
@@ -272,7 +335,7 @@
     physics();
     for (e of edges) e.display();
     for (node of nodes) node.display();
-    displaysvg.innerHTML = svg.innerHTML;
+    displaysvg.innerHTML = edge_group.outerHTML + node_group.outerHTML;
   }
   display();
   setInterval(display, 1000/30);
