@@ -9,16 +9,11 @@
     <svg id="mySvg" xmlns="http://www.w3.org/2000/svg">
 
     </svg>
-
+    <button onclick="reset()">RESET</button>
     <button onclick="restart()">RESTART</button>
     <button onclick="running = !running"> PAUSE (space)</button>
 
-    <div id = codeblock contenteditable>
-@main = x
-  & x ~ ((c d) b)
-  & {b f} ~ {y z}
-    
-    </div>
+    <div id = codeblock contenteditable style="padding-bottom: 2em;"></div>
 
     <style>
       body{
@@ -40,8 +35,6 @@
     </style>
 
 <script>
-
-
   const MAIN = 0
   const RIGHT = 1
   const LEFT = 2
@@ -58,7 +51,6 @@
 
   var displaysvg = document.getElementById('mySvg');
   var codeblock = document.getElementById('codeblock');
-
 
   displaysvg.setAttribute('width', window.innerWidth);
   displaysvg.setAttribute('height', window.innerHeight);
@@ -104,6 +96,7 @@
     update_verts(){
       this.verts = [{x:this.x, y:this.y}];
     }
+
     display(){
       this.update_verts();
       this.rotation = this.get_rotation();
@@ -264,6 +257,12 @@
 
   const opens = ['(', '{', '['];
   const closes = [')', '}', ']'];
+
+  function reset(){
+    codeblock.innerText = `@main = x
+  & x ~ ((c d) b)
+  & {b f} ~ {y z}`
+  }
 
   function build_tree(term, vartable){
     term = term.trim();    
@@ -542,11 +541,10 @@
     if (e.code=='Space')running = !running
     if (e.code=='KeyE' && e.metaKey)export_svg();
   })
+
+  reset();
   restart();
   setInterval(update, 1000/30);
-
-
-
 
   function export_svg(){
     let svg = displaysvg.outerHTML;
@@ -560,8 +558,6 @@
     a.href = url;    
     a.click();
   }
-
-
 
 </script>
 
