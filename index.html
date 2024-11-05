@@ -187,6 +187,8 @@
 
       for (let port of [this.start, this.end]){
         if (port.side == MAIN){
+          if (port.node.principal!=null) throw new Error("port already connected");
+          
           port.node.principal = this;
         }else if (port.side == RIGHT){
           port.node.right_edge = this;
@@ -223,7 +225,6 @@
         end_dir += Math.PI;
       }
       
-
       let smooth_weight = Math.sqrt((start.x - end.x)**2 + (start.y - end.y)**2)/2
       
       let start_x = Math.round(start.x + smooth_weight * Math.cos(start_dir));
@@ -261,10 +262,12 @@
   const closes = [')', '}', ']'];
 
   function reset(){
-    codeblock.innerText = `@main = res
-  & (fn (z res)) ~ dub
-  & fn ~ (x x)
-  & dub ~ ({(a b) (b R)} (a R))`
+  //   codeblock.innerText = `@main = res
+  // & (fn (z res)) ~ dub
+  // & fn ~ (x x)
+  // & dub ~ ({(a b) (b R)} (a R))`
+  codeblock.innerText = `@main = res
+  & (a b) ~ {a d}`
   }
 
   function build_tree(term, vartable){
@@ -272,8 +275,9 @@
     if (!opens.includes(term[0])){
       if (vartable.has(term)){
         let nd = vartable.get(term);
+        res = nd.principal.other(nd);
         clear([nd.principal, nd]);
-        return nd.principal.other(nd);
+        return res
       }else{
         let nd = new Terminal(type=VAR);
         vartable.set(term, nd);
@@ -319,7 +323,15 @@
   }
 
   function clear(garbage){
-    for (let el of garbage) el.element.remove();
+    for (let el of garbage){
+      el.element.remove();
+      if (el instanceof Edge){
+        console.log('remove',el);
+        
+        el.start.node[el.start.side == MAIN? 'principal': el.start.side == RIGHT? 'right_edge': 'left_edge'] = null;
+        el.end.node[el.end.side == MAIN? 'principal': el.end.side == RIGHT? 'right_edge': 'left_edge'] = null;
+      }
+    }
     edges = edges.filter(e=> !garbage.includes(e));
     nodes = nodes.filter(n => !garbage.includes(n));
     merge_stack = merge_stack.filter(m => !garbage.includes(m));
@@ -367,7 +379,6 @@
     let a = merge.start.node
     let b = merge.end.node;
     let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
-    clear(garbage);
 
     function check(x){return !garbage.includes(x)}
 
@@ -376,10 +387,12 @@
     let bl = b.left_edge.other(b);
     let br = b.right_edge.other(b);
 
-    let AL = new Node(type= b.type, x = a.x+10, y = a.y);
-    let AR = new Node(type= b.type, x = a.x, y = a.y+10);
-    let BL = new Node(type= a.type, x = b.x+10, y = b.y);
-    let BR = new Node(type= a.type, x = b.x, y = b.y+10);
+    clear(garbage);
+
+    let AL = new Node(type= b.type, x = a.x+20, y = a.y);
+    let AR = new Node(type= b.type, x = a.x, y = a.y+20);
+    let BL = new Node(type= a.type, x = b.x+20, y = b.y);
+    let BR = new Node(type= a.type, x = b.x, y = b.y+20);
 
     if (al.node == b){
       if (bl.node == a){
@@ -389,6 +402,11 @@
         new Edge({node:AL, side:MAIN}, {node:BR, side:MAIN});
         new Edge(bl, {node:BL, side:MAIN});
       }
+    }else if(al.node == a){      
+      new Edge({node:AL, side:MAIN}, {node:AR, side:MAIN});
+    }else{
+      new Edge(al, {node:AL, side:MAIN});
+
     }
 
     if (ar.node == b){
@@ -399,19 +417,11 @@
         new Edge({node:AR, side:MAIN}, {node:BR, side:MAIN});
         new Edge(bl, {node:BL, side:MAIN});
       }
+    }else{
+      if (ar.node != a) new Edge(ar, {node:AR, side:MAIN});
+      if (br.node == b) new Edge({node:BL, side:MAIN}, {node:BR, side:MAIN});
     }
 
-    if (ar.node == a){      
-      new Edge({node:AL, side:MAIN}, {node:AR, side:MAIN});
-    }
-    if (br.node == b){
-      new Edge({node:BL, side:MAIN}, {node:BR, side:MAIN});
-    }
-
-    if (check (al.node)) new Edge(al, {node:AL, side:MAIN});
-    if (check (ar.node)) new Edge(ar, {node:AR, side:MAIN});
-    if (check (bl.node)) new Edge(bl, {node:BL, side:MAIN});
-    if (check (br.node)) new Edge(br, {node:BR, side:MAIN});
 
     new Edge({node:AL, side:LEFT}, {node:BL, side:LEFT});
     new Edge({node:AL, side:RIGHT}, {node:BR, side:LEFT});
@@ -430,10 +440,10 @@
     edges = edges.filter(e=> !garbage.includes(e));
     nodes = nodes.filter(n => n != node);
 
-    clear(garbage)
-
+    
     l = node.left_edge.other(node);
     r = node.right_edge.other(node);
+    clear(garbage)
 
     if (l.node == node) return
 
