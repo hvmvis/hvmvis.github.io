@@ -6,13 +6,15 @@
     <title>INTERACTION NETS</title>
 </head>
 <body>
-    <svg id="mySvg"> </svg>
+    <svg id="mySvg" xmlns="http://www.w3.org/2000/svg">
+
+    </svg>
     <button onclick="running = !running"> PAUSE (space)</button>
 
-    <div id = codeblock contenteditable>
+    <!-- <div id = codeblock contenteditable>
 @main = x
   & {x y} ~ (a b)
-    </div>
+    </div> -->
 
     <style>
       body{
@@ -40,6 +42,7 @@
   const RIGHT = 1
   const LEFT = 2
 
+  const OUT = -1
   const VAR = 0
   const SUB = 1
   const APP = 2
@@ -60,6 +63,48 @@
 
   const center = {x:displaysvg.clientWidth/2, y:displaysvg.clientHeight/2};
   let nodes = [];
+
+  class Terminal{
+    constructor(type, x=null, y=null){
+      this.type = type;
+      this.id = Math.random().toString().slice(2);
+      this.x = x==null? Math.random() * center.x + center.x/2 : x;
+      this.y = y==null? Math.random() * center.y + center.y/2 : y;
+      this.principal = null;
+      this.element = document.createElement('circle');
+      this.element.id = this.id;
+      this.element.setAttribute('r', 5);
+      this.element.setAttribute('stroke', 'var(--color)');
+      this.color();
+      this.update_verts();
+      this.vel = {x:0, y:0};
+      nodes.push(this);
+      node_group.appendChild(this.element); 
+      this.display();
+    }
+
+    color(active){
+      this.element.setAttribute('fill', active?'red': this.type == ERA? 'black':'white');
+    }
+
+    get_rotation(){
+      if (this.principal == null)return 0;
+      let target = this.principal.other(this).node;
+      let dx = target.x - this.x;
+      let dy = target.y - this.y;
+      return Math.atan2(dy, dx);
+    }
+
+    update_verts(){
+      this.verts = [{x:this.x, y:this.y}];
+    }
+    display(){
+      this.update_verts();
+      this.rotation = this.get_rotation();
+      this.element.setAttribute('cx', Math.round(this.x));
+      this.element.setAttribute('cy', Math.round(this.y));
+    }
+  }
 
   class Node{
     constructor(type = DUP, x = null, y=null){
@@ -92,7 +137,6 @@
         if (e != null) e.color(active);
       }
     }
-
 
     display(){
       this.rotation = this.get_rotation();
@@ -155,8 +199,6 @@
     color(active = false){
       this.element.setAttribute('stroke', active? 'red':'var(--color)');
       
-
-      
       if (this.start.node.principal == this && this.end.node.principal == this && active && merge_stack[0] != this){
         merge_stack[merge_stack.indexOf(this)] = merge_stack[0];
         merge_stack[0] = this;
@@ -168,6 +210,7 @@
     display(){
       let start = this.start.node.verts[this.start.side];
       let end = this.end.node.verts[this.end.side];
+      
       let start_dir = this.start.node.rotation
       if (this.start.side != MAIN){
         start_dir += Math.PI;
@@ -176,32 +219,64 @@
       if (this.end.side != MAIN){
         end_dir += Math.PI;
       }
+      
 
       let smooth_weight = Math.sqrt((start.x - end.x)**2 + (start.y - end.y)**2)/2
-
+      
       let start_x = Math.round(start.x + smooth_weight * Math.cos(start_dir));
       let start_y = Math.round(start.y + smooth_weight * Math.sin(start_dir));
       let end_x = Math.round(end.x + smooth_weight * Math.cos(end_dir));
       let end_y = Math.round(end.y + smooth_weight * Math.sin(end_dir));
+
       let d = `M ${start.x} ${start.y} C ${start_x} ${start_y} ${end_x} ${end_y} ${end.x} ${end.y}`;
+      
       this.element.setAttribute('d', d);
     }
   }
 
+
+  // let t1 = new Terminal(type=ERA);
+  // let t2 = new Terminal(type=ERA);
+  // let t3 = new Terminal(type=ERA);
+
+  // let n = new Node(type=DUP);
+
+  // new Edge({node:n, side:MAIN}, {node:t1, side:MAIN});
+  // new Edge({node:n, side:RIGHT}, {node:t2, side:MAIN});
+  // new Edge({node:n, side:LEFT}, {node:t3, side:MAIN});
+
+
+
+  let t1 = new Terminal(type=ERA);
+  let t2 = new Terminal(type=OUT);
+  let t3 = new Terminal(type=ERA);
+  let t4 = new Terminal(type=ERA);
+
   let x = new Node(type=DUP);
   let y = new Node(type=SUP);
-  
-  let xr = new Node(type=SUP);
-  let xl = new Node(type=SUP);
-  let yl = new Node(type=SUP);
-  let yr = new Node(type=SUP);
+
 
   new Edge({node:x, side:MAIN}, {node:y, side:MAIN});
+  new Edge({node:x, side:RIGHT}, {node:t1, side:MAIN});
+  new Edge({node:x, side:LEFT}, {node:t2, side:MAIN});
+  new Edge({node:y, side:LEFT}, {node:t3, side:MAIN});
+  new Edge({node:y, side:RIGHT}, {node:t4, side:MAIN});
+  
+  // let xr = new Node(type=SUP);
+  // // let xl = new Node(type=SUP);
+  // let yl = new Node(type=DUP);
+  // // let yr = new Node(type=SUP);
 
-  new Edge({node:x, side:RIGHT}, {node:xr, side:MAIN});
-  new Edge({node:y, side:LEFT}, {node:yl, side:MAIN});
+  // new Edge({node:x, side:MAIN}, {node:y, side:MAIN});
+  // new Edge({node:x, side:RIGHT}, {node:xr, side:MAIN});
+  // new Edge({node:y, side:LEFT}, {node:yl, side:MAIN});
+  // new Edge({node:x, side:LEFT}, {node:y, side:RIGHT});
+  
+  // new Edge({node:xr, side:LEFT}, {node:t1, side:MAIN});
+  // new Edge({node:xr, side:RIGHT}, {node:t2, side:MAIN});
+  // new Edge({node:yl, side:LEFT}, {node:t3, side:MAIN});
+  // new Edge({node:yl, side:RIGHT}, {node:t4, side:MAIN});
 
-  new Edge({node:x, side:LEFT}, {node:y, side:RIGHT});
 
   function attract(node, center, force, pow=0){
     let dx = center.x - node.x;
@@ -214,28 +289,48 @@
     node.vel.y += force * Math.sin(angle);
   }
 
-  function erase(merge){
+  function clear(garbage){
+    for (let el of garbage) el.element.remove();
+    edges = edges.filter(e=> !garbage.includes(e));
+    nodes = nodes.filter(n => !garbage.includes(n));
+  }
+
+  function annihilate(merge){
 
     let a = merge.start.node
     let b = merge.end.node;
     let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
-
-    edges = edges.filter(e=> !garbage.includes(e));
-    nodes = nodes.filter(n => n != a && n != b);
-
-    function check(x){return !garbage.includes(x)}
+    clear(garbage);
 
     let al = a.left_edge.other(a);
     let ar = a.right_edge.other(a);
     let bl = b.left_edge.other(b);
     let br = b.right_edge.other(b);
 
+    if (al.node == a){
+      if (bl.node != b){
+        new Edge(bl, br)
+      }
+    }else if (bl.node == b){
+      new Edge(al, ar);
+    }else if (al.node == b){
+      if (bl.node == a){
+        new Edge(ar, br);
+      }else{
+        new Edge(ar, bl);
+      }
+    }else if (ar.node == b){
+      if (bl.node == a){
+        new Edge(al, br);
+      }else{
+        new Edge(al, bl);
+      }
+    }else{
+      new Edge(al, bl);
+      new Edge(ar, br);
+    }
+
     merge_stack.shift();
-    if (check(al.node) && check(bl.node)) new Edge(al, bl);
-    if (check(bl.node) && check(br.node)) new Edge(bl, br);
-
-    for (let el of garbage) el.element.remove();
-
   }
 
   function commute(merge){
@@ -243,9 +338,7 @@
     let a = merge.start.node
     let b = merge.end.node;
     let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
-
-    edges = edges.filter(e=> !garbage.includes(e));
-    nodes = nodes.filter(n => n != a && n != b);
+    clear(garbage);
 
     function check(x){return !garbage.includes(x)}
 
@@ -262,8 +355,6 @@
     let BR = new Node(type= a.type, x = b.x, y = b.y+10);
 
     if (al.node == b){
-      console.log('alb');
-      
       if (bl.node == a){
         new Edge({node:AL, side:MAIN}, {node:BL, side:MAIN});
         new Edge(br, {node:BR, side:MAIN});
@@ -294,14 +385,47 @@
     if (check (ar.node)) new Edge(ar, {node:AR, side:MAIN});
     if (check (bl.node)) new Edge(bl, {node:BL, side:MAIN});
     if (check (br.node)) new Edge(br, {node:BR, side:MAIN});
-    
 
     new Edge({node:AL, side:LEFT}, {node:BL, side:LEFT});
     new Edge({node:AL, side:RIGHT}, {node:BR, side:LEFT});
     new Edge({node:AR, side:LEFT}, {node:BL, side:RIGHT});
     new Edge({node:AR, side:RIGHT}, {node:BR, side:RIGHT});
     
+  }
+
+  function _void(merge){
+    let a = merge.start.node
+    let b = merge.end.node;
+    let garbage = [merge, a, b]
+
     for (let el of garbage) el.element.remove();
+    edges = edges.filter(e=> !garbage.includes(e));
+    nodes = nodes.filter(n => n != a && n != b);
+    merge_stack.shift();
+  }
+
+  function erase(node, term){
+    console.log('erase');
+    
+    garbage = [node, node.left_edge, node.right_edge, term.principal, term];
+    edges = edges.filter(e=> !garbage.includes(e));
+    nodes = nodes.filter(n => n != node);
+    console.log(garbage);
+    
+    for (let el of garbage) el.element.remove();
+
+
+    l = node.left_edge.other(node);
+    r = node.right_edge.other(node);
+
+    if (l.node == node) return
+
+    let term1 = new Terminal(type=term.type, x = node.x + 10, y = node.y);
+    let term2 = new Terminal(type=term.type, x = node.x, y = node.y + 10);
+
+    new Edge(l, {node:term1, side:MAIN});
+    new Edge(r, {node:term2, side:MAIN});
+    merge_stack.shift();
   }
 
   function physics(){
@@ -330,7 +454,26 @@
     let merge_center = {x:(merge.start.node.x + merge.end.node.x)/2, y:(merge.start.node.y + merge.end.node.y)/2};
     dist = Math.sqrt((merge.start.node.x - merge.end.node.x)**2 + (merge.start.node.y - merge.end.node.y)**2);
     if (dist < 10){
-      (merge.start.node.type == merge.end.node.type ? erase : commute)(merge) 
+      console.log(merge);
+
+      if (merge.start.node instanceof Node){
+        if (merge.end.node instanceof Node){
+          if (merge.start.node.type == merge.end.node.type){
+            annihilate(merge);
+          }else{
+            commute(merge);
+          }
+        }else{
+          erase(merge.start.node, merge.end.node);
+        }
+      }else{
+        
+        if (merge.end.node instanceof Node){
+          erase(merge.end.node, merge.start.node);
+        }else{
+          _void(merge)
+        }
+      }
     }
 
     for (node of nodes){
@@ -361,7 +504,7 @@
   function display(){
     for (e of edges) e.display();
     for (node of nodes) node.display();
-    displaysvg.innerHTML = edge_group.outerHTML + node_group.outerHTML ;
+    displaysvg.innerHTML = edge_group.outerHTML + node_group.outerHTML;
   }
   display();
 
@@ -377,7 +520,6 @@
     last_target = node_by_id(e.target.id);
     if (last_target != null) last_target.color(true);
     display();
-
   })
 
   displaysvg.addEventListener('mousemove', e=>{
@@ -394,9 +536,24 @@
   })
   document.addEventListener("keydown", e=>{
     if (e.code=='Space')running = !running
+    if (e.code=='KeyE' && e.metaKey)export_svg();
   })
   setInterval(update, 1000/30);
 
+
+
+  function export_svg(){
+    let svg = displaysvg.outerHTML;
+    svg = svg.replace(/var\(--bg\)/g, 'white').replace(/var\(--color\)/g, 'black');
+    console.log(svg);
+    let blob = new Blob([svg], {type: 'image/svg+xml'});
+
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.download = 'interaction_net.svg';
+    a.href = url;    
+    a.click();
+  }
 
 </script>
 
