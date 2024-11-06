@@ -188,7 +188,6 @@
       for (let port of [this.start, this.end]){
         if (port.side == MAIN){
           if (port.node.principal!=null) throw new Error("port already connected");
-          
           port.node.principal = this;
         }else if (port.side == RIGHT){
           port.node.right_edge = this;
@@ -262,12 +261,10 @@
   const closes = [')', '}', ']'];
 
   function reset(){
-  //   codeblock.innerText = `@main = res
-  // & (fn (z res)) ~ dub
-  // & fn ~ (x x)
-  // & dub ~ ({(a b) (b R)} (a R))`
-  codeblock.innerText = `@main = res
-  & {res a} ~ (u a)`
+    codeblock.innerText = `@main = res
+    & {res a} ~ (v1 v2)
+    & (x a) ~ {v1 v2}
+  `
   }
 
   function build_tree(term, vartable){
@@ -423,6 +420,10 @@
     }else{
       if (ar.node != a) new Edge(ar, {node:AR, side:MAIN});
       if (br.node == b) new Edge({node:BL, side:MAIN}, {node:BR, side:MAIN});
+      else {
+        new Edge(bl, {node:BL, side:MAIN});
+        new Edge(br, {node:BR, side:MAIN});
+      }
     }
 
 
