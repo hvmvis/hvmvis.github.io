@@ -1,25 +1,16 @@
-const MAIN = 0
-const LEFT = 1
-const RIGHT = 2
-
-const OUT = 0
-const VAR = 1
-const APP = 2
-const DUP = 3
-const ERA = 4
-const LAM = 5
-const SUP = 6
-const NUL = 7
+const [MAIN, LEFT, RIGHT] = [0,1,2]
+const [OUT, VAR, APP, DUP, ERA, LAM, SUP, NUL] = [0,1,2,3,4,5,6,7]
 
 const displaysvg = document.querySelector('svg#mySvg') as SVGElement;
 displaysvg.setAttribute('width', document.documentElement.clientWidth.toString())
 displaysvg.setAttribute('height', document.documentElement.clientHeight.toString())
-const codeblock = document.querySelector('pre#codeblock') as HTMLPreElement;
+const codeeditor = document.querySelector('#codeblock') as HTMLElement;
+const codecontent = codeeditor.querySelector('#codecontent') as HTMLElement;
+const errormsg = document.querySelector('#errormsg') as HTMLElement;
 
 let merge_stack:Edge[] = []
-
 let running = true;
-
+ 
 function assert (val:boolean, msg:any, ...els:El[]){
   if (!val) {
     els.forEach(el=>el.color(true))
@@ -52,7 +43,6 @@ class Vec2{
   T(){return new Vec2(this.y, -this.x)}
   static lookat(angle:number){return new Vec2(Math.cos(angle), Math.sin(angle))}
   normalized(){return this.mul(1/this.len())}
-  static randpos(){return new Vec2(Math.random() * displaysvg.clientWidth, Math.random() * displaysvg.clientHeight )}
 }
 
 const v0 = new Vec2(0, 0)
@@ -92,7 +82,7 @@ class Terminal extends El{
   constructor(type=OUT, pos:Vec2|null=null){
     super();
     this.type = type
-    this.pos = pos?? Vec2.randpos();
+    this.pos = pos == null ? new Vec2(Math.random() * displaysvg.clientWidth, Math.random() * displaysvg.clientHeight): pos
     node_group.appendChild(this.element)  ;
     nodes.push(this);
     this.color(false);
@@ -265,25 +255,23 @@ function parse_code(code:string){
   let vartable = new Map();
   let t0 = build_tree(main.split('=')[1].trim(), vartable);
   new Edge(t0, {node:new Terminal(OUT), side:MAIN});
-  for (let line of lines){
-    let parts = line.split('~').map(l=>l.trim());
-    let tree1 = build_tree(parts[0], vartable);
-    let tree2 = build_tree(parts[1], vartable);
-    new Edge(tree1, tree2);
-  }
-  nodes = nodes.filter(n=>!n.removed)
-  edges = edges.filter(e=>!e.removed)
+  lines.forEach((line, i)=>{
+    try{
+      let parts = line.split('~').map(l=>build_tree(l, vartable));
+      new Edge(parts[0], parts[1]);
+    } catch(error){
+      errormsg.textContent = `error in line: ${line}`
+      throw error
+    }
+  })
   layout()
 }
 
 function build_tree(term:string, vartable:Map<string, Terminal>){
   term = term.trim();
   if (!['(', '{', '['].includes(term[0])){
-
     if (vartable.has(term)){
-
       let nd = vartable.get(term)!;
-      
       let res = nd.connections[0]!.other({node:nd, side:MAIN});
       nd.remove();
       nd.connections[MAIN]!.remove();
@@ -303,9 +291,7 @@ function build_tree(term:string, vartable:Map<string, Terminal>){
     stack += c;
     if (['(', '{', '['].includes(c)) ctr+=1;
     if ([')', '}', ']'].includes(c)) ctr-=1;
-    if ([')', '}', ']'].includes(c) || c == ' '){
-      if (ctr == 0) break;
-    }
+    if (([')', '}', ']'].includes(c) || c == ' ') && ctr == 0) break;
   }
   let stackb = term.slice(stack.length);
   new Edge({node:nd, side:LEFT}, build_tree(stack, vartable));
@@ -314,12 +300,13 @@ function build_tree(term:string, vartable:Map<string, Terminal>){
 }
 
 let code = '@main = res\n  & {res a} ~ (b c)'
-
-if (localStorage['code'] != undefined){
+if (window.location.search){
+  code = decodeURIComponent(window.location.search.slice(1))
+  code = code.replace(/&/g, '\n  &')
+}else if (localStorage['code'] != undefined){
   code = localStorage['code']
-  codeblock.textContent = code
 }
-
+codecontent.textContent = code
 parse_code(code)
 
 function mapall(fn:(x:Edge|Terminal)=>void){
@@ -355,10 +342,10 @@ function physics(){
 function merge_ports(a:Port, b:Port){
   let [ea,eb] = [a,b].map(n=>{
     let e = n.node.connections[n.side]!
-    e.remove()
+    if (e) e.remove()
     return e
   })
-  if (ea != eb) new Edge(ea.other(a), eb.other(b))
+  if (ea && eb && ea != eb) new Edge(ea.other(a), eb.other(b))
 }
 
 function annihilate(a:Gate, b:Gate){
@@ -442,7 +429,6 @@ setInterval(() => {
   display();
 }, 1000/30);
 
-
 let last_target:Terminal|undefined = undefined;
 let drag_target:Terminal|undefined = undefined;
 let drag_start:Vec2|undefined = undefined;
@@ -451,19 +437,11 @@ displaysvg.addEventListener('mousedown', e=>{
   if (last_target != null) last_target.color(false);
   
   if (e.target != displaysvg){
-    console.log(e.target);
-
     let tid = (e.target as SVGElement).id;
-    console.log(tid);
-    
     last_target = nodes.find(n=>n.id == tid) as Terminal;
-    console.log(last_target);
-    
     if (last_target) last_target.color(true);
     drag_target = last_target;
-  }else{
-    drag_start = new Vec2(e.offsetX, e.offsetY).add(cam_pos);
-  }
+  }else drag_start = new Vec2(e.offsetX, e.offsetY).add(cam_pos);
   display()
 })
 
@@ -476,31 +454,45 @@ displaysvg.addEventListener('mousemove', e=>{
   display();
 })
 
-document.addEventListener('mouseup', e=>{
-  drag_start = undefined;
-  drag_target = undefined;
-})
+document.addEventListener('mouseup', ()=> drag_start = drag_target = undefined)
 
 function toggle_code(){
-  show_code = !show_code;
-  if (show_code){
+  if (!show_code){
     displaysvg.style.display = 'none';
-    codeblock.style.display = 'block';
+    codeeditor.style.display = 'flex';
   }else{
-    displaysvg.style.display = 'block';
-    codeblock.style.display = 'none';
-    let code = codeblock.textContent
+    let code = codecontent.textContent!    
+    try {parse_code(code)}
+    catch (error){
+      console.error(error);
+      return
+    }
     localStorage['code'] = code
-    parse_code(code!)
+    codeeditor.style.display = 'none';
+    displaysvg.style.display = 'block';
   }
+  show_code = !show_code;
 }
+
+const files = document.querySelector('#files') as HTMLElement;
+[
+  '@main=res&{res a}~(b c)',
+  '@main=res&{res a}~(b c)&{a b}~(c d)',
+  '@main=res&{res a}~(b c)&{a b}~(c d)&d~(e f)',
+].map((example,i)=>{
+  const url = document.createElement('a');
+  url.textContent = `example ${i+1}`;
+  url.href = `?${encodeURIComponent(example)}`;
+  files.appendChild(url);
+})
+
 
 document.addEventListener('keydown', e=>{
   if (e.code == 'Space'){
-    e.preventDefault();
-    running = !running;
+    if (!show_code){
+      e.preventDefault();
+      running = !running;
+    }
   }
-  if (e.code == 'Enter' && e.metaKey){
-    toggle_code();
-  }
+  if (e.code == 'Enter' && e.metaKey) toggle_code();
 })

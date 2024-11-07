@@ -23,28 +23,56 @@
       }
     }
     #codeblock{
+
       font-family: monospace;
       white-space: pre-wrap;
       display: none;
       padding-top:2em;
       padding-left: 4em;
+      display: none;
+    }
+    #files{
+      width:150px;
+      text-align: left;
+    }
+
+    a{
+      all:unset;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    #files>a{
+      display: block;
+      margin: .5em 0em;;
+    }
+
+    #codecontent{
+      flex:1;
+      white-space: pre-wrap;
     }
     button{
       display: block;
       position: fixed;
       top: 0;
     }
+    #errormsg{
+      color: red;
+    }
   </style>
 
-
   <div>
-    <svg id="mySvg" width="800" height="600"></svg>
-    <pre id="codeblock" contenteditable="true">
-@main = res
-  & {res a} ~ (v1 (v2 a))
-    </pre>
-    <button onclick="toggle_code()">&lt;code&gt; (command + enter)</button>
-  </div>
+    <svg id="mySvg" width="800" height="600" ></svg>
+    <div id="codeblock">
+        <div id="files">
+        </div>
+        <div id="codecontent" contenteditable>
+          @main = res & {res a} ~ (v1 (v2 a))
+        </div>
+        <div id="errormsg"></div>
+      </div>
+      <button onclick="toggle_code()">&lt;code&gt; (command + enter)</button>
+    </div>
 
   <script src="./src/index.js"></script>
 </body>

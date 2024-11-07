@@ -1,19 +1,12 @@
 "use strict";
-const MAIN = 0;
-const LEFT = 1;
-const RIGHT = 2;
-const OUT = 0;
-const VAR = 1;
-const APP = 2;
-const DUP = 3;
-const ERA = 4;
-const LAM = 5;
-const SUP = 6;
-const NUL = 7;
+const [MAIN, LEFT, RIGHT] = [0, 1, 2];
+const [OUT, VAR, APP, DUP, ERA, LAM, SUP, NUL] = [0, 1, 2, 3, 4, 5, 6, 7];
 const displaysvg = document.querySelector('svg#mySvg');
 displaysvg.setAttribute('width', document.documentElement.clientWidth.toString());
 displaysvg.setAttribute('height', document.documentElement.clientHeight.toString());
-const codeblock = document.querySelector('pre#codeblock');
+const codeeditor = document.querySelector('#codeblock');
+const codecontent = codeeditor.querySelector('#codecontent');
+const errormsg = document.querySelector('#errormsg');
 let merge_stack = [];
 let running = true;
 function assert(val, msg, ...els) {
@@ -43,7 +36,6 @@ class Vec2 {
     T() { return new Vec2(this.y, -this.x); }
     static lookat(angle) { return new Vec2(Math.cos(angle), Math.sin(angle)); }
     normalized() { return this.mul(1 / this.len()); }
-    static randpos() { return new Vec2(Math.random() * displaysvg.clientWidth, Math.random() * displaysvg.clientHeight); }
 }
 const v0 = new Vec2(0, 0);
 const center = new Vec2(displaysvg.clientWidth / 2, displaysvg.clientHeight / 2);
@@ -78,7 +70,7 @@ class Terminal extends El {
         this.repforce = 100.;
         this.grav = 0.01;
         this.type = type;
-        this.pos = pos !== null && pos !== void 0 ? pos : Vec2.randpos();
+        this.pos = pos == null ? new Vec2(Math.random() * displaysvg.clientWidth, Math.random() * displaysvg.clientHeight) : pos;
         node_group.appendChild(this.element);
         nodes.push(this);
         this.color(false);
@@ -224,14 +216,16 @@ function parse_code(code) {
     let vartable = new Map();
     let t0 = build_tree(main.split('=')[1].trim(), vartable);
     new Edge(t0, { node: new Terminal(OUT), side: MAIN });
-    for (let line of lines) {
-        let parts = line.split('~').map(l => l.trim());
-        let tree1 = build_tree(parts[0], vartable);
-        let tree2 = build_tree(parts[1], vartable);
-        new Edge(tree1, tree2);
-    }
-    nodes = nodes.filter(n => !n.removed);
-    edges = edges.filter(e => !e.removed);
+    lines.forEach((line, i) => {
+        try {
+            let parts = line.split('~').map(l => build_tree(l, vartable));
+            new Edge(parts[0], parts[1]);
+        }
+        catch (error) {
+            errormsg.textContent = `error in line: ${line}`;
+            throw error;
+        }
+    });
     layout();
 }
 function build_tree(term, vartable) {
@@ -260,10 +254,8 @@ function build_tree(term, vartable) {
             ctr += 1;
         if ([')', '}', ']'].includes(c))
             ctr -= 1;
-        if ([')', '}', ']'].includes(c) || c == ' ') {
-            if (ctr == 0)
-                break;
-        }
+        if (([')', '}', ']'].includes(c) || c == ' ') && ctr == 0)
+            break;
     }
     let stackb = term.slice(stack.length);
     new Edge({ node: nd, side: LEFT }, build_tree(stack, vartable));
@@ -271,10 +263,14 @@ function build_tree(term, vartable) {
     return { node: nd, side: MAIN };
 }
 let code = '@main = res\n  & {res a} ~ (b c)';
-if (localStorage['code'] != undefined) {
-    code = localStorage['code'];
-    codeblock.textContent = code;
+if (window.location.search) {
+    code = decodeURIComponent(window.location.search.slice(1));
+    code = code.replace(/&/g, '\n  &');
 }
+else if (localStorage['code'] != undefined) {
+    code = localStorage['code'];
+}
+codecontent.textContent = code;
 parse_code(code);
 function mapall(fn) {
     edges.forEach(fn);
@@ -309,10 +305,11 @@ function physics() {
 function merge_ports(a, b) {
     let [ea, eb] = [a, b].map(n => {
         let e = n.node.connections[n.side];
-        e.remove();
+        if (e)
+            e.remove();
         return e;
     });
-    if (ea != eb)
+    if (ea && eb && ea != eb)
         new Edge(ea.other(a), eb.other(b));
 }
 function annihilate(a, b) {
@@ -400,18 +397,14 @@ displaysvg.addEventListener('mousedown', e => {
     if (last_target != null)
         last_target.color(false);
     if (e.target != displaysvg) {
-        console.log(e.target);
         let tid = e.target.id;
-        console.log(tid);
         last_target = nodes.find(n => n.id == tid);
-        console.log(last_target);
         if (last_target)
             last_target.color(true);
         drag_target = last_target;
     }
-    else {
+    else
         drag_start = new Vec2(e.offsetX, e.offsetY).add(cam_pos);
-    }
     display();
 });
 displaysvg.addEventListener('mousemove', e => {
@@ -424,31 +417,46 @@ displaysvg.addEventListener('mousemove', e => {
         cam_pos = new Vec2(-e.offsetX, -e.offsetY).add(drag_start);
     display();
 });
-document.addEventListener('mouseup', e => {
-    drag_start = undefined;
-    drag_target = undefined;
-});
+document.addEventListener('mouseup', () => drag_start = drag_target = undefined);
 function toggle_code() {
-    show_code = !show_code;
-    if (show_code) {
+    if (!show_code) {
         displaysvg.style.display = 'none';
-        codeblock.style.display = 'block';
+        codeeditor.style.display = 'flex';
     }
     else {
-        displaysvg.style.display = 'block';
-        codeblock.style.display = 'none';
-        let code = codeblock.textContent;
+        let code = codecontent.textContent;
+        try {
+            parse_code(code);
+        }
+        catch (error) {
+            console.error(error);
+            return;
+        }
         localStorage['code'] = code;
-        parse_code(code);
+        codeeditor.style.display = 'none';
+        displaysvg.style.display = 'block';
     }
+    show_code = !show_code;
 }
+const files = document.querySelector('#files');
+[
+    '@main=res&{res a}~(b c)',
+    '@main=res&{res a}~(b c)&{a b}~(c d)',
+    '@main=res&{res a}~(b c)&{a b}~(c d)&d~(e f)',
+].map((example, i) => {
+    const url = document.createElement('a');
+    url.textContent = `example ${i + 1}`;
+    url.href = `?${encodeURIComponent(example)}`;
+    files.appendChild(url);
+});
 document.addEventListener('keydown', e => {
     if (e.code == 'Space') {
-        e.preventDefault();
-        running = !running;
+        if (!show_code) {
+            e.preventDefault();
+            running = !running;
+        }
     }
-    if (e.code == 'Enter' && e.metaKey) {
+    if (e.code == 'Enter' && e.metaKey)
         toggle_code();
-    }
 });
 //# sourceMappingURL=index.js.map
