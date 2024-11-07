@@ -66,6 +66,7 @@ class El{
   constructor(){
     this.id = Math.random().toString().slice(2);
     this.element = this.create_element();
+    this.element.setAttribute('id', this.id);
   }
   create_element():SVGElement{return document.createElementNS('http://www.w3.org/2000/svg', 'g')}
   remove(){
@@ -166,7 +167,6 @@ class Gate extends Terminal {
 
   create_element():SVGElement{
     let element = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    element.id = this.id;
     element.setAttribute('stroke', 'var(--color)');
     return element;
   }
@@ -182,11 +182,6 @@ class Gate extends Terminal {
     ).map(p => `${p.x}, ${p.y}`).join(' ');
     this.element.setAttribute('points', points);
   }
-
-  edges(){
-    return this.connections.filter(e=>e!=null)
-  }
-
 }
 
 type Port = {node:Terminal, side:number}
@@ -358,25 +353,16 @@ function physics(){
 }
 
 function merge_ports(a:Port, b:Port){
-  let ea = a.node.connections[a.side]!
-  let eb = b.node.connections[b.side]!
-  
-  ea.remove()
-  eb.remove()
-  
-  if (ea == eb) return;
-  new Edge(ea.other(a), eb.other(b))
+  let [ea,eb] = [a,b].map(n=>{
+    let e = n.node.connections[n.side]!
+    e.remove()
+    return e
+  })
+  if (ea != eb) new Edge(ea.other(a), eb.other(b))
 }
 
 function annihilate(a:Gate, b:Gate){
-
-  let al = {node:a, side:LEFT}
-  let ar = {node:a, side:RIGHT}
-  let bl = {node:b, side:LEFT}
-  let br = {node:b, side:RIGHT}
-  merge_ports(al, bl)
-  merge_ports(ar, br)
-
+  [LEFT,RIGHT].map(i=>merge_ports({node:a, side:i}, {node:b, side:i}))
 }
 
 function replaceport(newport:Port, oldport:Port){
@@ -386,31 +372,21 @@ function replaceport(newport:Port, oldport:Port){
 }
 
 function commute(a:Gate, b:Gate){
-
-  let al = {node:a, side:LEFT}
-  let ar = {node:a, side:RIGHT}
-  let bl = {node:b, side:LEFT}
-  let br = {node:b, side:RIGHT}
-  
-  let AL = new Gate(b.type, a.pos.add(new Vec2(20, 0)))
-  let AR = new Gate(b.type, a.pos.add(new Vec2(0, 20)))
-  let BL = new Gate(a.type, b.pos.add(new Vec2(20, 0)))
-  let BR = new Gate(a.type, b.pos.add(new Vec2(0, 20)))
-
-  new Edge({node:AL, side:LEFT}, {node:BL, side:LEFT})
-  new Edge({node:AL, side:RIGHT}, {node:BR, side:LEFT})
-  new Edge({node:AR, side:LEFT}, {node:BL, side:RIGHT})
-  new Edge({node:AR, side:RIGHT}, {node:BR, side:RIGHT})
-
-  replaceport({node:AL, side:MAIN}, al)
-  replaceport({node:AR, side:MAIN}, ar)
-  replaceport({node:BL, side:MAIN}, bl)
-  replaceport({node:BR, side:MAIN}, br)
+  let newgates = [0,0,1,1].map((h)=>new Gate([b,a][h].type, [a,b][h].pos));
+  ([0,0,1,1]).map((h,i)=>{
+    let m = i%2
+    new Edge({node:newgates[h], side:[LEFT, RIGHT][m]}, {node:newgates[2+m], side:[LEFT, RIGHT][h]})
+    replaceport({node:newgates[i], side:MAIN}, {node:h?b:a, side:m==0?LEFT:RIGHT})
+    return newgates[i]
+  }).map(anneal)
 }
 
 function erase(node:Gate, term:Terminal){
-  replaceport({node:new Terminal(term.type, term.pos.add(new Vec2(2,2))), side:MAIN}, {node:node, side:LEFT})
-  replaceport({node:new Terminal(term.type, term.pos.add(new Vec2(-2,-2))), side:MAIN}, {node:node, side:RIGHT})
+  [LEFT,RIGHT].map(side=>{
+    let newnode = new Terminal(term.type, term.pos)
+    replaceport({node:newnode, side:MAIN}, {node, side})
+    return newnode
+  }).map(anneal)
 }
 
 function interact(a:Terminal, b:Terminal){
@@ -438,20 +414,20 @@ function energy(){
 
 let show_code = false;
 
-function layout(){
+function anneal(node:Terminal, d:number = 100){
   function geten(node:Terminal){
     return node.energy() + node.connections.map(e=>e?.energy()??0).reduce((a,b)=>a+b)
   }
-  function anneal(node:Terminal, d:number){
-    let starte = geten(node)
-    let startpos = node.pos
+  let starte = geten(node)
+  let startpos = node.pos
 
-    for (let i = 0; i < 4; i++){
-      node.pos = node.pos.add(Vec2.lookat(Math.random() * Math.PI * 2).mul(d*Math.random()))
-      if (geten(node) > starte) node.pos = startpos
-    }
+  for (let i = 0; i < 4; i++){
+    node.pos = node.pos.add(Vec2.lookat(Math.random() * Math.PI * 2).mul(d*Math.random()))
+    if (geten(node) > starte) node.pos = startpos
   }
-  for (let i = 0; i < 40; i++) nodes.forEach(node=>anneal(node,100))
+}
+function layout(){
+  for (let i = 0; i < 40; i++) nodes.forEach(node=>anneal(node))
   let avg_pos = nodes.map(n=>n.pos).reduce((a,b)=>a.add(b)).mul(1/nodes.length)
   cam_pos = avg_pos.sub(center)
 }
@@ -476,7 +452,7 @@ displaysvg.addEventListener('mousedown', e=>{
   
   if (e.target != displaysvg){
     console.log(e.target);
-    
+
     let tid = (e.target as SVGElement).id;
     console.log(tid);
     
