@@ -273,7 +273,7 @@ function build_tree(term, vartable) {
     new Edge({ node: nd, side: RIGHT }, build_tree(stackb, vartable));
     return { node: nd, side: MAIN };
 }
-let code = '@main = res\n  & {res a} ~ (a b)';
+let code = '@main = res\n  & {res a} ~ (b c)';
 if (localStorage['code'] != undefined) {
     code = localStorage['code'];
     codeblock.textContent = code;

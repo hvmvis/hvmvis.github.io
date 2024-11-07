@@ -318,7 +318,7 @@ function build_tree(term:string, vartable:Map<string, Terminal>){
   return {node:nd, side:MAIN};
 }
 
-let code = '@main = res\n  & {res a} ~ (a b)'
+let code = '@main = res\n  & {res a} ~ (b c)'
 
 if (localStorage['code'] != undefined){
   code = localStorage['code']
