@@ -32,10 +32,8 @@ function assert (val:boolean, msg:any, ...els:El[]){
 const edge_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 const node_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
-
 let nodes:Terminal[] = [];
 let edges:Edge[] = [];
-
 
 class Vec2{
   x:number
@@ -320,7 +318,8 @@ function build_tree(term:string, vartable:Map<string, Terminal>){
   return {node:nd, side:MAIN};
 }
 
-let code = '@main = res\n\n  & {res a} ~ (v1 v2)\n\n  & (x a) ~ {v1 v2}'
+let code = '@main = res\n  & {res a} ~ (a b)'
+
 if (localStorage['code'] != undefined){
   code = localStorage['code']
   codeblock.textContent = code
@@ -522,6 +521,7 @@ function toggle_code(){
 
 document.addEventListener('keydown', e=>{
   if (e.code == 'Space'){
+    e.preventDefault();
     running = !running;
   }
   if (e.code == 'Enter' && e.metaKey){
