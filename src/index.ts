@@ -66,8 +66,8 @@ class El{
   id: string 
   element: SVGElement
   constructor(){
-    this.element = this.create_element();
     this.id = Math.random().toString().slice(2);
+    this.element = this.create_element();
   }
   create_element():SVGElement{return document.createElementNS('http://www.w3.org/2000/svg', 'g')}
   remove(){
@@ -116,13 +116,13 @@ class Terminal extends El{
 
 
   physics(){
-    this.vel = this.vel.mul(0.98)
+    this.vel = this.vel.mul(0.97)
     nodes.forEach(n=>{
       if (n == this) return;
       let sdist = this.pos.sub(n.pos).slen();
       this.vel = this.vel.add(this.pos.sub(n.pos).normalized().mul(1/sdist).mul(this.repforce))
     })
-    const maxvel = 1
+    const maxvel = .7
     if (this.vel.len() > maxvel) this.vel = this.vel.normalized().mul(maxvel)
     this.pos = this.pos.add(this.vel)
     
@@ -168,13 +168,13 @@ class Gate extends Terminal {
 
   create_element():SVGElement{
     let element = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    element.id = this.id;
     element.setAttribute('stroke', 'var(--color)');
     return element;
   }
 
   update(){
     super.update();
-
     this.port_pos = [new Vec2(10, 0), new Vec2(-5, -5), new Vec2(-5, 5)]
     .map(p=>this.pos.add(p.T().mul(-Math.sin(this.rotation))).add(p.mul(Math.cos(this.rotation))))
   }
@@ -183,8 +183,6 @@ class Gate extends Terminal {
     let points = [0, 1, 2].map(i => this.pos.add(new Vec2(10 * Math.cos(this.rotation + i * Math.PI/3*2), 10 * Math.sin(this.rotation + i * Math.PI/3*2)).sub(cam_pos))
     ).map(p => `${p.x}, ${p.y}`).join(' ');
     this.element.setAttribute('points', points);
-    this.element.setAttribute('cx', this.pos.toString());
-    this.element.setAttribute('cy', this.pos.toString());
   }
 
   edges(){
@@ -226,6 +224,14 @@ class Edge extends El{
   }
 
   update(){}
+
+  color(active:boolean){
+    super.color(active);
+    let idx = merge_stack.indexOf(this);
+    if (idx == -1) return;
+    merge_stack[idx] = merge_stack[0]
+    merge_stack[0] = this;
+  }
   
   display(){
     let start = this.start.node.port_pos[this.start.side];
@@ -340,8 +346,8 @@ function physics(){
       if (e!=tomerge) e.physics()
       else{
         let diff = a.pos.sub(b.pos)
-        a.pos = a.pos.add(diff.normalized().mul(-0.5))
-        b.pos = b.pos.add(diff.normalized().mul(0.5))
+        a.pos = a.pos.add(diff.normalized().mul(-0.7))
+        b.pos = b.pos.add(diff.normalized().mul(0.7))
         if (diff.len() < 20){
           tomerge.remove()
           interact(a,b)
@@ -404,8 +410,8 @@ function commute(a:Gate, b:Gate){
 }
 
 function erase(node:Gate, term:Terminal){
-  replaceport({node:new Terminal(term.type, term.pos.add(new Vec2(1,1))), side:MAIN}, {node:node, side:LEFT})
-  replaceport({node:new Terminal(term.type, term.pos.add(new Vec2(0,0))), side:MAIN}, {node:node, side:RIGHT})
+  replaceport({node:new Terminal(term.type, term.pos.add(new Vec2(2,2))), side:MAIN}, {node:node, side:LEFT})
+  replaceport({node:new Terminal(term.type, term.pos.add(new Vec2(-2,-2))), side:MAIN}, {node:node, side:RIGHT})
 }
 
 function interact(a:Terminal, b:Terminal){
@@ -468,11 +474,17 @@ let drag_start:Vec2|undefined = undefined;
 
 displaysvg.addEventListener('mousedown', e=>{
   if (last_target != null) last_target.color(false);
-
+  
   if (e.target != displaysvg){
+    console.log(e.target);
+    
     let tid = (e.target as SVGElement).id;
+    console.log(tid);
+    
     last_target = nodes.find(n=>n.id == tid) as Terminal;
-    if (last_target != null) last_target.color(true);
+    console.log(last_target);
+    
+    if (last_target) last_target.color(true);
     drag_target = last_target;
   }else{
     drag_start = new Vec2(e.offsetX, e.offsetY).add(cam_pos);
