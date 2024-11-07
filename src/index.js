@@ -263,12 +263,12 @@ function build_tree(term, vartable) {
     return { node: nd, side: MAIN };
 }
 let code = '@main = res\n  & {res a} ~ (b c)';
+if (localStorage['code'] != undefined) {
+    code = localStorage['code'];
+}
 if (window.location.search) {
     code = decodeURIComponent(window.location.search.slice(1));
     code = code.replace(/&/g, '\n  &');
-}
-else if (localStorage['code'] != undefined) {
-    code = localStorage['code'];
 }
 codecontent.textContent = code;
 parse_code(code);
