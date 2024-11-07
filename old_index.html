@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTERACTION NETS</title>
+</head>
+<body>
+    <svg id="mySvg" xmlns="http://www.w3.org/2000/svg">
+
+    </svg>
+    <button onclick="reset()">RESET</button>
+    <button onclick="restart()">RESTART</button>
+    <button onclick="running = !running; displaysvg.focus()"> PAUSE (space)</button>
+
+    <div id = codeblock contenteditable style="padding-bottom: 2em;"></div>
+
+    <a href="readme.html">readme</a>
+
+    <style>
+      body{
+        --color:black;
+        --bg:white;
+        background-color: var(--bg);
+        color: var(--color);
+      }
+      @media (prefers-color-scheme: dark){
+        body{
+          --color:white;
+          --bg:black;
+        }
+      }
+      #codeblock{
+        font-family: monospace;
+        white-space: pre-wrap;
+      }
+    </style>
+
+<script>
+  
+  const MAIN = 0
+  const RIGHT = 1
+  const LEFT = 2
+
+  const OUT = -1
+  const VAR = 0
+  const SUB = 1
+  const APP = 2
+  const DUP = 3
+  const ERA = 4
+  const LAM = 5
+  const SUP = 6
+  const NUL = 7
+
+  var displaysvg = document.getElementById('mySvg');
+  var codeblock = document.getElementById('codeblock');
+
+  displaysvg.setAttribute('width', window.innerWidth);
+  displaysvg.setAttribute('height', window.innerHeight);
+
+  var edge_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  var node_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+  const center = {x:displaysvg.clientWidth/2, y:displaysvg.clientHeight/2};
+  let nodes = [];
+
+  let edges = [];
+  let merge_stack = []
+
+  class Terminal{
+    constructor(type, x=null, y=null){
+      this.type = type;
+      this.id = Math.random().toString().slice(2);
+      this.x = x==null? Math.random() * center.x * 2 : x;
+      this.y = y==null? Math.random() * center.y * 2 : y;
+      this.principal = null;
+      this.create_element();
+      this.color(false);
+      this.element.id = this.id;
+      this.vel = {x:0, y:0};
+      nodes.push(this);
+      node_group.appendChild(this.element); 
+    }
+
+    create_element(){
+      this.element = document.createElement('circle');
+      this.element.setAttribute('r', 5);
+      this.element.setAttribute('stroke', 'var(--color)');
+
+    }
+
+    color(active){
+      this.element.setAttribute('fill', active ? 'red': (this.type == OUT || this.type == DUP)? 'black':'white');
+      for (let e of this.get_edges()){
+        if (e != null) e.color(active);
+      }
+    }
+
+    get_edges(){return [this.principal]}
+
+    update_rotation(){
+      let target = this.principal.other(this).node;
+      let dx = target.x - this.x;
+      let dy = target.y - this.y;
+      this.rotation = Math.atan2(dy, dx);
+      if (isNaN(this.rotation)|| this.rotation == undefined) throw new Error('rotation is NaN');
+    }
+
+    update_verts(){
+      this.update_rotation()
+      this.verts = [{x:this.x, y:this.y}];
+    }
+
+    display(){
+      this.update_verts();
+      this.element.setAttribute('cx', Math.round(this.x));
+      this.element.setAttribute('cy', Math.round(this.y));
+    }
+  }
+
+  class Node extends(Terminal) {
+    constructor(type = DUP, x = null, y=null){
+
+      super(type, x, y)
+      if (this.x == NaN) throw new Error('x is NaN');
+      this.vel = {x:0, y:0};
+      this.principal = null;
+      this.left_edge = null;
+      this.right_edge = null;
+    }
+
+    create_element(){
+      this.element = document.createElement('polygon');
+      this.element.setAttribute('stroke', 'var(--color)');
+    }
+
+    get_edges(){return [this.principal, this.left_edge, this.right_edge]}
+
+    display(){
+      if (isNaN(this.x) || isNaN(this.y)) throw new Error('x or y is NaN');
+      this.update_verts();
+      let points = this.verts.map(v => `${v.x},${v.y}`).join(' ');
+      this.element.setAttribute('points', points);
+      this.element.setAttribute('cx', Math.round(this.x));
+      this.element.setAttribute('cy', Math.round(this.y));
+      if (isNaN(this.x) || isNaN(this.y)) throw new Error('x or y is NaN');
+    }
+
+
+    update_verts(){
+      this.update_rotation()
+      console.log((this.rotation));
+      
+      this.verts = [];
+      let angle = this.rotation;
+      for(let i = 0; i < 3; i++){
+        let x = this.x + 10 * Math.cos(angle);
+        let y = this.y + 10 * Math.sin(angle);
+        this.verts.push({x:Math.round(x), y:Math.round(y)});
+        angle += 2 * Math.PI / 3;
+        if (isNaN(x) || isNaN(y)) throw new Error('x or y is NaN');
+      }
+      console.log("VERTS:",this.verts);
+      
+    }
+  }
+
+  class Edge{
+    constructor(start, end){
+      this.id = Math.random().toString().slice(2);
+      this.start = start;
+      this.end = end;
+      edges.push(this);
+      this.element = document.createElement('path')
+      this.element.id = this.id;
+      this.color();
+      this.element.setAttribute('fill', 'none');
+      edge_group.appendChild(this.element);
+
+      for (let port of [this.start, this.end]){
+        if (port.side == MAIN){
+          if (port.node.principal!=null) throw new Error("port already connected");
+          port.node.principal = this;
+        }else if (port.side == RIGHT){
+          port.node.right_edge = this;
+        }else if (port.side == LEFT){
+          port.node.left_edge = this;
+        }
+      }
+      if (this.start.side == MAIN && this.end.side == MAIN && this.start.node.type != OUT && this.end.node.type != OUT){
+        merge_stack.push(this)
+      } 
+    }
+
+    color(active = false){
+      this.element.setAttribute('stroke', active? 'red':'var(--color)');
+      let idx = merge_stack.indexOf(this);
+      if (idx != -1){
+        merge_stack[idx] = merge_stack[0];
+        merge_stack[0] = this;
+      }
+    }
+
+    other(node){return this.start.node == node ? this.end : this.start}
+
+    display(){
+      let start = this.start.node.verts[this.start.side];
+      
+      let end = this.end.node.verts[this.end.side];
+      console.log(end, this.end.node);
+      
+      let start_dir = this.start.node.rotation
+      if (this.start.side != MAIN){
+        start_dir += Math.PI;
+      }
+      let end_dir = this.end.node.rotation;
+      if (this.end.side != MAIN){
+        end_dir += Math.PI;
+      }
+      
+      let smooth_weight = Math.sqrt((start.x - end.x)**2 + (start.y - end.y)**2)/2
+      
+      let start_x = Math.round(start.x + smooth_weight * Math.cos(start_dir));
+      let start_y = Math.round(start.y + smooth_weight * Math.sin(start_dir));
+      let end_x = Math.round(end.x + smooth_weight * Math.cos(end_dir));
+      let end_y = Math.round(end.y + smooth_weight * Math.sin(end_dir));
+
+      let d = `M ${start.x} ${start.y} C ${start_x} ${start_y} ${end_x} ${end_y} ${end.x} ${end.y}`;
+      console.log(d);
+      
+      this.element.setAttribute('d', d);
+    }
+  }
+
+
+  function parse_code(code){
+    
+    let lines = code.replace(/\n/g, '&').split('&').filter(l=>l.trim() != '');
+    let main = lines[0]
+    lines = lines.slice(1);
+
+    let vartable = new Map();    
+
+    let t0 = build_tree(main.split('=')[1].trim(), vartable);
+    new Edge(t0, {node:new Terminal(type=OUT), side:MAIN});
+
+    for (let line of lines){ 
+      console.log(line);
+      let parts = line.split('~').map(l=>l.trim());
+      let tree1 = build_tree(parts[0], vartable);
+      let tree2 = build_tree(parts[1], vartable);
+      new Edge(tree1, tree2);
+    }
+  }
+
+  const opens = ['(', '{', '['];
+  const closes = [')', '}', ']'];
+
+  function reset(){
+    codeblock.innerText = `@main = res
+    & {res a} ~ (v1 v2)
+    & (x a) ~ {v1 v2}
+  `
+  }
+
+  function build_tree(term, vartable){
+    term = term.trim();    
+    if (!opens.includes(term[0])){
+      if (vartable.has(term)){
+        let nd = vartable.get(term);
+        res = nd.principal.other(nd);
+        clear([nd.principal, nd]);
+        return res
+      }else{
+        let nd = new Terminal(type=VAR);
+        vartable.set(term, nd);
+        return {node:nd, side:MAIN};
+      }
+    }
+
+    if (!(opens.includes(term[0]) && [')', '}'].includes(term[term.length-1])))console.error('error:', term)
+    let nd = new Node(type=term[0] == '(' ? SUP : DUP)
+    term = term.slice(1, -1);
+    let ctr = 0;
+    let stack = ''
+
+    for (let c of term){
+      stack += c;
+      if (opens.includes(c)) ctr+=1;
+      if (closes.includes(c)) ctr-=1;
+      if (closes.includes(c) || c == ' '){
+        if (ctr == 0) break
+      }
+    }
+    let stackb = term.slice(stack.length);
+    new Edge({node: nd, side: LEFT}, build_tree(stack, vartable));
+    new Edge({node: nd, side: RIGHT}, build_tree(stackb, vartable));
+    return {node:nd, side:MAIN};
+  }
+  
+  function restart(){
+    clear([...edges, ...nodes]);
+    parse_code(codeblock.innerText);
+    display();
+  }
+
+  function attract(node, center, force, pow=0){
+    let dx = center.x - node.x;
+    let dy = center.y - node.y;
+    console.log(node.x);
+    console.log(center);
+    
+    
+    console.log(dx, dy);
+    
+    let sdist = dx*dx + dy*dy;
+    let angle = Math.atan2(dy, dx);
+    force = force/Math.pow(sdist, pow);
+    
+    node.vel.x += force * Math.cos(angle);
+    node.vel.y += force * Math.sin(angle);
+    console.log(angle);
+    
+    if (isNaN(node.vel.x)) throw new Error(node, 'vel.x is NaN');
+
+  }
+
+  function clear(garbage){
+    for (let el of garbage){
+      el.element.remove();
+      if (el instanceof Edge){
+        console.log('remove',el);
+        
+        el.start.node[el.start.side == MAIN? 'principal': el.start.side == RIGHT? 'right_edge': 'left_edge'] = null;
+        el.end.node[el.end.side == MAIN? 'principal': el.end.side == RIGHT? 'right_edge': 'left_edge'] = null;
+      }
+    }
+    edges = edges.filter(e=> !garbage.includes(e));
+    nodes = nodes.filter(n => !garbage.includes(n));
+    merge_stack = merge_stack.filter(m => !garbage.includes(m));
+  }
+
+  function annihilate(merge){
+
+    let a = merge.start.node
+    let b = merge.end.node;
+    let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
+    
+    let al = a.left_edge.other(a);
+    let ar = a.right_edge.other(a);
+    let bl = b.left_edge.other(b);
+    let br = b.right_edge.other(b);
+
+    clear(garbage);
+
+    if (al.node == a){
+      if (bl.node != b){
+        new Edge(bl, br)
+      }
+    }else if (bl.node == b){
+      new Edge(al, ar);
+    }else if (al.node == b){
+      if (bl.node == a){
+        new Edge(ar, br);
+      }else{
+        new Edge(ar, bl);
+      }
+    }else if (ar.node == b){
+      if (bl.node == a){
+        new Edge(al, br);
+      }else{
+        new Edge(al, bl);
+      }
+    }else{
+      new Edge(al, bl);
+      new Edge(ar, br);
+    }
+
+  }
+
+  function commute(merge){
+
+    let a = merge.start.node
+    let b = merge.end.node;
+    let garbage = [merge, a, b, a.left_edge, a.right_edge, b.left_edge, b.right_edge];
+
+    function check(x){return !garbage.includes(x)}
+
+    let al = a.left_edge.other(a);
+    let ar = a.right_edge.other(a);
+    let bl = b.left_edge.other(b);
+    let br = b.right_edge.other(b);
+
+    clear(garbage);
+
+    let AL = new Node(type= b.type, x = a.x+20, y = a.y);
+    let AR = new Node(type= b.type, x = a.x, y = a.y+20);
+    let BL = new Node(type= a.type, x = b.x+20, y = b.y);
+    let BR = new Node(type= a.type, x = b.x, y = b.y+20);
+
+    if (al.node == b){
+      if (bl.node == a){
+        new Edge({node:AL, side:MAIN}, {node:BL, side:MAIN});
+        new Edge(br, {node:BR, side:MAIN});
+      }else{
+        new Edge({node:AL, side:MAIN}, {node:BR, side:MAIN});
+        new Edge(bl, {node:BL, side:MAIN});
+      }
+    }else if(al.node == a){      
+      new Edge({node:AL, side:MAIN}, {node:AR, side:MAIN});
+    }else{
+      new Edge(al, {node:AL, side:MAIN});
+
+    }
+
+    if (ar.node == b){
+      if (bl.node == a){
+        new Edge({node:AR, side:MAIN}, {node:BL, side:MAIN});
+        new Edge(br, {node:BR, side:MAIN});
+      }else{
+        new Edge({node:AR, side:MAIN}, {node:BR, side:MAIN});
+        new Edge(bl, {node:BL, side:MAIN});
+      }
+    }else{
+      if (ar.node != a) new Edge(ar, {node:AR, side:MAIN});
+      if (br.node == b) new Edge({node:BL, side:MAIN}, {node:BR, side:MAIN});
+      else {
+        new Edge(bl, {node:BL, side:MAIN});
+        new Edge(br, {node:BR, side:MAIN});
+      }
+    }
+
+
+    new Edge({node:AL, side:LEFT}, {node:BL, side:LEFT});
+    new Edge({node:AL, side:RIGHT}, {node:BR, side:LEFT});
+    new Edge({node:AR, side:LEFT}, {node:BL, side:RIGHT});
+    new Edge({node:AR, side:RIGHT}, {node:BR, side:RIGHT});
+    
+  }
+
+  function _void(merge){
+    clear([merge, merge.start.node, merge.end.node]);
+  }
+
+  function erase(node, term){
+    
+    garbage = [node, node.left_edge, node.right_edge, term.principal, term];
+    edges = edges.filter(e=> !garbage.includes(e));
+    nodes = nodes.filter(n => n != node);
+
+    
+    l = node.left_edge.other(node);
+    r = node.right_edge.other(node);
+    clear(garbage)
+
+    if (l.node == node) return
+
+    let term1 = new Terminal(type=term.type, x = node.x + 10, y = node.y);
+    let term2 = new Terminal(type=term.type, x = node.x, y = node.y + 10);
+
+    new Edge(l, {node:term1, side:MAIN});
+    new Edge(r, {node:term2, side:MAIN});
+
+  }
+
+  function physics(){
+    const damp = 0.9;
+
+    for (node of nodes){
+      node.vel = {x:node.vel.x * damp, y:node.vel.y * damp};
+
+      attract(node, center, 0.1, 1.5);
+      for (n of nodes){
+        if (isNaN(node.vel.x)) throw new Error(node, 'vel.x is NaN');
+        if (n == node) continue
+        attract(node, {x:n.x, y:n.y}, -10., 1.);
+
+      }
+    }
+    for (e of edges){
+
+      let port = e.end.node.verts[e.end.side];
+      attract(e.start.node, {x:port.x, y:port.y}, 0.01);
+
+      port = e.start.node.verts[e.start.side];
+      console.log("port:",e.start);
+      
+      attract(e.end.node, {x:port.x, y:port.y}, 0.01);
+    }
+    let merge = merge_stack[0];
+    if (merge == undefined) return;
+
+    let merge_center = {x:(merge.start.node.x + merge.end.node.x)/2, y:(merge.start.node.y + merge.end.node.y)/2};
+    dist = Math.sqrt((merge.start.node.x - merge.end.node.x)**2 + (merge.start.node.y - merge.end.node.y)**2);
+
+    if (dist < 10){
+      if (merge.start.node instanceof Node){
+        if (merge.end.node instanceof Node){
+          if (merge.start.node.type == merge.end.node.type)annihilate(merge);
+          else commute(merge);
+        } else erase(merge.start.node, merge.end.node);
+      }else{
+        if (merge.end.node instanceof Node) erase(merge.end.node, merge.start.node);
+        else _void(merge)
+      }
+    }
+
+    for (node of nodes){
+      if (isNaN(node.vel.x)) throw new Error(node, 'vel.x is NaN');
+      if (merge != undefined){
+
+        let merge_center = {x:(merge.start.node.x + merge.end.node.x)/2, y:(merge.start.node.y + merge.end.node.y)/2};
+        if (node == merge.start.node|| node == merge.end.node){
+          node.vel.x = 0;
+          node.vel.y = 0;
+          attract(node, merge_center, 1.);
+        }
+        if (isNaN(node.vel.x)) throw new Error(node, 'vel.x is NaN');
+      }
+      node.vel.x = Math.min(2, Math.max(-2, node.vel.x));
+      node.vel.y = Math.min(2, Math.max(-2, node.vel.y));
+      node.x += node.vel.x;
+      node.y += node.vel.y;
+    }
+  }
+
+  let running = true;
+  let last_target = null;
+  let drag_target = null;
+
+  function update(){
+    if (!running) return;
+    physics();
+    display();
+  }
+  function display(){
+    for (e of edges) e.display();
+    for (node of nodes) node.display();
+    displaysvg.innerHTML = edge_group.outerHTML + node_group.outerHTML;
+  }
+
+  function node_by_id(id){
+    for (let node of nodes){
+      if (node.id == id) return node;
+    }
+  }
+
+  displaysvg.addEventListener('mousedown',e=>{
+    drag_target = node_by_id(e.target.id);
+    if (last_target != null) last_target.color(false);
+    last_target = node_by_id(e.target.id);
+    if (last_target != null) last_target.color(true);
+    display();
+  })
+
+  displaysvg.addEventListener('mousemove', e=>{
+    if (drag_target != null){
+      drag_target.x = e.offsetX;
+      drag_target.y = e.offsetY;
+      drag_target.vel = {x:0, y:0};
+      display();
+    }
+  })
+
+  displaysvg.addEventListener('mouseup', e=>{
+    drag_target = null;
+  })
+  document.addEventListener("keydown", e=>{
+    if (e.code=='Space'){
+      running = !running
+    }
+    if (e.code=='KeyE' && e.metaKey)export_svg();
+  })
+
+  reset();
+  restart();
+
+  setInterval(update, 1000/30);
+
+  function export_svg(){
+    let svg = displaysvg.outerHTML;
+    svg = svg.replace(/var\(--bg\)/g, 'white').replace(/var\(--color\)/g, 'black');
+    console.log(svg);
+    let blob = new Blob([svg], {type: 'image/svg+xml'});
+
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.download = 'interaction_net.svg';
+    a.href = url;    
+    a.click();
+  }
+
+</script>
+
+</body>
+</html>
