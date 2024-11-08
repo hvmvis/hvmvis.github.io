@@ -88,7 +88,7 @@ class Terminal extends El{
   constructor(type=OUT, pos:Vec2|null=null){
     super();
     this.type = type
-    this.pos = pos == null ? new Vec2(Math.random() * displaysvg.clientWidth, Math.random() * displaysvg.clientHeight): pos
+    this.pos = pos == null ? new Vec2((Math.random()-0.5) * displaysvg.clientWidth, (Math.random()-0.5) * displaysvg.clientHeight): pos
     node_group.appendChild(this.element)  ;
     nodes.push(this);
     this.color(false);
@@ -124,7 +124,7 @@ class Terminal extends El{
   }
 
   physics(){
-    this.vel = this.vel.mul(0.97)
+    this.vel = this.vel.mul(0.97).add(this.pos.normalized().mul(-this.grav))
     nodes.forEach(n=>{
       if (n == this) return;
       let sdist = this.pos.sub(n.pos).slen();
@@ -267,12 +267,17 @@ class Edge extends El{
 const fn_definitons: Map<string, Terminal> = new Map();
 
 function parse_code(code:string){
+  console.log("parsing code", code);
+  
   fn_definitons.clear();
   displaysvg.innerHTML= ''
   mapall(n=>n.remove())
-
+  console.log(nodes, edges, merge_stack);
+  
   
   code.split('\n@').slice(1).map(code=>{
+    console.log(`parsing function: ${code}`);
+    
     code = code.replace(/\s+/g, ' ')
     
     const vartable = new Map();
@@ -367,7 +372,7 @@ function physics(){
 function copy_graph(graph:Terminal, map:Map<Terminal, Terminal>):Terminal{
 
   if (map.has(graph)) return map.get(graph)!;
-  let new_node = new (graph.constructor as typeof Terminal)(graph.type);
+  let new_node = new (graph.constructor as typeof Terminal)(graph.type, graph.pos);
   new_node.set_text(graph.tag)
   map.set(graph, new_node);
 
@@ -422,6 +427,9 @@ function call(fn_name:string, gate:Terminal){
   replaceport({node:gate, side:MAIN}, {node:head, side:MAIN})
   head.remove()
   
+  for (let n of mp.values()){
+    n.pos = n.pos.add(gate.pos).sub(fn!.pos)
+  }
   for (let i=0; i<20; i++){
     for (let n of mp.values()){
       anneal(n)
@@ -446,6 +454,9 @@ function interact(a:Terminal, b:Terminal){
 }
 
 function display(){
+  assert(!edges.map(e=>e.removed).reduce((a,b)=>a||b), `edges are removed`)
+  assert(!nodes.map(n=>n.removed).reduce((a,b)=>a||b), `nodes are removed`)
+  
   mapall(n=>n.display());
   displaysvg.innerHTML = edges.map(e=>e.element.outerHTML).join('') + nodes.map(n=>n.element.outerHTML).join('')
 }
@@ -494,10 +505,7 @@ displaysvg.addEventListener('mousedown', e=>{
   
   
   if (e.target != displaysvg){
-    console.log(e.target);
-    
     let tid = (e.target as SVGElement).id;
-    console.log(tid);
     
     last_target = nodes.find(n=>n.id == tid) as Terminal;
     if (last_target) last_target.color(true);
@@ -520,7 +528,10 @@ document.addEventListener('mouseup', ()=> drag_start = drag_target = undefined)
 {
   let code = '@main = res\n  & {res a} ~ (b c)'
   if (localStorage['code'] != undefined) code = localStorage['code']
-  if (window.location.search) code = window.location.search.slice(1)
+  if (window.location.search){
+    code = window.location.search.slice(1)
+    window.history.pushState({}, document.title, window.location.pathname);
+  }
   set_code(code)
 }
 
@@ -531,8 +542,7 @@ function get_code(){
 
 function set_code(code:string){
   code = decodeURIComponent(code)
-
-  code = code.replace(/\n@/g, '@@').replace(/\s+/g, ' ')
+  code = ("\n"+code).replace(/\n@/g, '@@').replace(/\s+/g, ' ')
   code = code.replace(/@@/g, '\n\n@').replace(/&/g, '\n  &')
   codecontent.value = code
   parse_code(code)
@@ -546,12 +556,7 @@ function toggle_code(){
     codeeditor.style.display = 'flex';
   }else{
     let code = codecontent.value!     
-    try {parse_code(code)}
-    catch (error){
-      console.error(error);
-      return
-    }
-    localStorage['code'] = code
+    set_code(code)
     codeeditor.style.display = 'none';
     displaysvg.style.display = 'block';
   }
@@ -563,6 +568,13 @@ const files = document.querySelector('#files') as HTMLElement;
   '@main=res&{res a}~(b c)',
   '@main=res&{res a}~(b c)&{a b}~(c d)',
   '@main=res&{res a}~(b c)&{a b}~(c d)&d~(e f)',
+`
+@main = res
+  &(@c0 res) ~ @succ 
+
+@c0 = ((* a) a)
+
+@succ = ({(a b) (b R)} (a R))`,
 ].map((example,i)=>{
   const url = document.createElement('a');
   url.textContent = `example ${i+1}`;
