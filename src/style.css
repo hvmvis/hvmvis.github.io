@@ -1,4 +1,16 @@
 body{
-  background-color: black;
-  color: white;
+  --color:black;
+  --bg:white;
+  background-color: var(--bg);
+  color: var(--color);
+  padding: 0;
+  margin:0;
+  font-family: monospace;
+}
+
+@media (prefers-color-scheme: dark){
+  body{
+    --color:white;
+    --bg:black;
+  }
 }

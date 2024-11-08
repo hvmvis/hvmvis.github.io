@@ -566,29 +566,17 @@ import example_nets from './example_nets'
   files.appendChild(p);
 
   p.textContent = 'Examples:';
-  [
-    [
-      "mini example",
-      '@main=res&{res a}~(b c)',
-    ],
-    [
-      'tree grow',
-      '@main=res&{res a}~(b c)&{a b}~(c d)&d~(e f)',
-    ],
-    [
-      'function calling',
-      `@main = res
-        &(@c0 res) ~ @succ
-        @c0 = ((* a) a)
-        @succ = ({(a b) (b R)} (a R))`,
-    ],
-  ];
   example_nets.map(([name,code])=>{
     const url = document.createElement('a');
     url.textContent = `${name}`;
     url.href = `?${encodeURIComponent(code)}`;
     files.appendChild(url);
   })
+  files.appendChild(document.createElement('br'))
+  let a = document.createElement('a');
+  a.textContent = 'readme';
+  a.href = '/readme';
+  files.appendChild(a);
 }
 
 document.addEventListener('keydown', e=>{
