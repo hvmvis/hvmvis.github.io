@@ -539,14 +539,8 @@ function get_code(){
 
 function set_code(code:string){
   code = decodeURIComponent(code)
-  console.log(code);
-  
   code = ("\n"+code).replace(/ +/g, ' ')
-  console.log(code);
   code = code.replace(/\n ?@/g, '@@').replace(/\s+/g, ' ')
-
-  console.log(code);
-  
   code = code.replace(/@@/g, '\n\n@').replace(/&/g, '\n  &')
   codecontent.value = code
   parse_code(code)
@@ -565,10 +559,12 @@ function toggle_code(){
   }
   show_code = !show_code;
 }
+import example_nets from './example_nets'
 {
   const files = document.querySelector('#files') as HTMLElement;
   let p = document.createElement('p');
   files.appendChild(p);
+
   p.textContent = 'Examples:';
   [
     [
@@ -582,11 +578,12 @@ function toggle_code(){
     [
       'function calling',
       `@main = res
-        &(@c0 res) ~ @succ 
+        &(@c0 res) ~ @succ
         @c0 = ((* a) a)
         @succ = ({(a b) (b R)} (a R))`,
     ],
-  ].map(([name,code])=>{
+  ];
+  example_nets.map(([name,code])=>{
     const url = document.createElement('a');
     url.textContent = `${name}`;
     url.href = `?${encodeURIComponent(code)}`;

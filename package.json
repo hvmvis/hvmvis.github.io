@@ -4,15 +4,15 @@
   "description": "![Net Visualization](net.svg)",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc -w --sourceMap"
+    "dev": "vite",
+    "build": "vite build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^9.1.0",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
   }
 }
