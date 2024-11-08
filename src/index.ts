@@ -446,7 +446,7 @@ function interact(a:Terminal, b:Terminal){
   if (isgate(a) && isgate(b)){
     if (b.type != a.type) commute(a,b)
     else annihilate(a,b)
-  }else if (!isgate(a) && !isgate(b)){
+  }else if (!isgate(a) && !isgate(b)){ // void
   }else{
     if (a.type == ERA || a.type == VAR) erase(b as Gate, a)
     else throw new Error('invalid interaction')
@@ -500,10 +500,7 @@ let drag_target:Terminal|undefined = undefined;
 let drag_start:Vec2|undefined = undefined;
 
 displaysvg.addEventListener('mousedown', e=>{
-  if (last_target != null) last_target.color(false);
-
-  
-  
+  if (last_target != null) last_target.color(false);  
   if (e.target != displaysvg){
     let tid = (e.target as SVGElement).id;
     
@@ -529,7 +526,7 @@ document.addEventListener('mouseup', ()=> drag_start = drag_target = undefined)
   let code = '@main = res\n  & {res a} ~ (b c)'
   if (localStorage['code'] != undefined) code = localStorage['code']
   if (window.location.search){
-    code = window.location.search.slice(1)
+    code = window.location.search.slice(1).replace(/,/g, ' ')
     window.history.pushState({}, document.title, window.location.pathname);
   }
   set_code(code)

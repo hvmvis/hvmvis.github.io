@@ -406,7 +406,7 @@ function interact(a, b) {
         else
             annihilate(a, b);
     }
-    else if (!isgate(a) && !isgate(b)) {
+    else if (!isgate(a) && !isgate(b)) { // void
     }
     else {
         if (a.type == ERA || a.type == VAR)
@@ -486,7 +486,7 @@ document.addEventListener('mouseup', () => drag_start = drag_target = undefined)
     if (localStorage['code'] != undefined)
         code = localStorage['code'];
     if (window.location.search) {
-        code = window.location.search.slice(1);
+        code = window.location.search.slice(1).replace(/,/g, ' ');
         window.history.pushState({}, document.title, window.location.pathname);
     }
     set_code(code);
