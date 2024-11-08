@@ -1,6 +1,6 @@
 "use strict";
 const [MAIN, LEFT, RIGHT] = [0, 1, 2];
-const [OUT, VAR, APP, DUP, ERA, LAM, SUP, NUL] = [0, 1, 2, 3, 4, 5, 6, 7];
+const [OUT, REF, VAR, APP, DUP, ERA, LAM, SUP, NUL] = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 const displaysvg = document.querySelector('svg#mySvg');
 displaysvg.setAttribute('width', document.documentElement.clientWidth.toString());
 displaysvg.setAttribute('height', document.documentElement.clientHeight.toString());
@@ -12,7 +12,12 @@ let running = true;
 function assert(val, msg, ...els) {
     if (!val) {
         els.forEach(el => el.color(true));
-        display();
+        try {
+            display();
+        }
+        catch (error) {
+            console.error(error);
+        }
         running = false;
         throw new Error(msg);
     }
@@ -67,6 +72,8 @@ class Terminal extends El {
         this.connections = [null];
         this.port_pos = [v0];
         this.rotation = 0;
+        this.dot = null;
+        this.tag = '';
         this.repforce = 100.;
         this.grav = 0.01;
         this.type = type;
@@ -75,11 +82,24 @@ class Terminal extends El {
         nodes.push(this);
         this.color(false);
     }
+    set_text(tag) {
+        this.tag = tag;
+        let text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '10');
+        text.setAttribute('y', '5');
+        text.textContent = tag;
+        text.setAttribute('fill', 'var(--color)');
+        this.element.appendChild(text);
+    }
     create_element() {
-        let element = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        element.setAttribute('r', '5');
-        element.setAttribute('stroke', 'var(--color)');
-        return element;
+        this.dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        this.dot.setAttribute('r', '5');
+        this.dot.setAttribute('stroke', 'var(--color)');
+        this.dot.id = this.id;
+        let group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.appendChild(this.dot);
+        // group.appendChild(text)
+        return group;
     }
     energy() {
         return nodes.map(n => n == this ? 0 : this.repforce / this.pos.sub(n.pos).len()).reduce((a, b) => a + b) + this.pos.len() * this.grav;
@@ -112,8 +132,8 @@ class Terminal extends El {
         }
     }
     display() {
-        this.element.setAttribute('cx', (this.pos.x - cam_pos.x).toString());
-        this.element.setAttribute('cy', (this.pos.y - cam_pos.y).toString());
+        var _a;
+        (_a = this.element) === null || _a === void 0 ? void 0 : _a.setAttribute('transform', `translate(${this.pos.x - cam_pos.x}, ${this.pos.y - cam_pos.y}) `);
     }
     get_principal() { return this.connections[0]; }
     get_left() { return this.connections[1]; }
@@ -207,31 +227,46 @@ class Edge extends El {
         this.end.node.connections[this.end.side] = null;
     }
 }
+const fn_definitons = new Map();
 function parse_code(code) {
+    fn_definitons.clear();
     displaysvg.innerHTML = '';
     mapall(n => n.remove());
-    let lines = code.replace(/\n/g, '').split('&').filter(l => l.trim() != '');
-    let main = lines[0];
-    lines = lines.slice(1);
-    let vartable = new Map();
-    let t0 = build_tree(main.split('=')[1].trim(), vartable);
-    new Edge(t0, { node: new Terminal(OUT), side: MAIN });
-    lines.forEach((line, i) => {
-        try {
-            let parts = line.split('~').map(l => build_tree(l, vartable));
-            new Edge(parts[0], parts[1]);
-        }
-        catch (error) {
-            errormsg.textContent = `error in line: ${line}`;
-            throw error;
-        }
+    code.split('\n@').slice(1).map(code => {
+        code = code.replace(/\s+/g, ' ');
+        const vartable = new Map();
+        const fn_name = code.split('=')[0].trim();
+        const fn_body = code.split('=')[1].split('&');
+        const fn = new Terminal(OUT);
+        fn.set_text(fn_name);
+        fn_definitons.set(fn_name, fn);
+        new Edge({ node: fn, side: MAIN }, build_tree(fn_body[0], vartable));
+        fn_body.slice(1).forEach(line => {
+            try {
+                let parts = line.split('~').map(l => build_tree(l, vartable));
+                new Edge(parts[0], parts[1]);
+            }
+            catch (error) {
+                errormsg.textContent = `error in line: ${line}`;
+                throw error;
+            }
+        });
     });
     layout();
 }
 function build_tree(term, vartable) {
     term = term.trim();
     if (!['(', '{', '['].includes(term[0])) {
-        if (vartable.has(term)) {
+        if (term == '*') {
+            let nd = new Terminal(ERA);
+            return { node: nd, side: MAIN };
+        }
+        else if (term.startsWith('@')) {
+            let nd = new Terminal(REF);
+            nd.set_text(term);
+            return { node: nd, side: MAIN };
+        }
+        else if (vartable.has(term)) {
             let nd = vartable.get(term);
             let res = nd.connections[0].other({ node: nd, side: MAIN });
             nd.remove();
@@ -262,16 +297,6 @@ function build_tree(term, vartable) {
     new Edge({ node: nd, side: RIGHT }, build_tree(stackb, vartable));
     return { node: nd, side: MAIN };
 }
-let code = '@main = res\n  & {res a} ~ (b c)';
-if (localStorage['code'] != undefined) {
-    code = localStorage['code'];
-}
-if (window.location.search) {
-    code = decodeURIComponent(window.location.search.slice(1));
-    code = code.replace(/&/g, '\n  &');
-}
-codecontent.textContent = code;
-parse_code(code);
 function mapall(fn) {
     edges.forEach(fn);
     nodes.forEach(fn);
@@ -301,6 +326,19 @@ function physics() {
     }
     else
         mapall(e => e.physics());
+}
+function copy_graph(graph, map) {
+    if (map.has(graph))
+        return map.get(graph);
+    let new_node = new graph.constructor(graph.type);
+    new_node.set_text(graph.tag);
+    map.set(graph, new_node);
+    graph.connections.map(e => {
+        let [start, end] = [e.start, e.end].map(p => ({ node: copy_graph(p.node, map), side: p.side }));
+        if (start.node.connections[start.side] == null)
+            new Edge(start, end);
+    });
+    return new_node;
 }
 function merge_ports(a, b) {
     let [ea, eb] = [a, b].map(n => {
@@ -336,9 +374,25 @@ function erase(node, term) {
         return newnode;
     }).map(anneal);
 }
+function call(fn_name, gate) {
+    let fn = fn_definitons.get(fn_name);
+    let mp = new Map();
+    let head = copy_graph(fn, mp);
+    replaceport({ node: gate, side: MAIN }, { node: head, side: MAIN });
+    head.remove();
+    for (let i = 0; i < 20; i++) {
+        for (let n of mp.values()) {
+            anneal(n);
+        }
+    }
+}
 function interact(a, b) {
     let isgate = (n) => n instanceof Gate;
+    if (isgate(a))
+        [a, b] = [b, a];
     a.remove();
+    if (a.type == REF)
+        return call(a.tag.slice(1), b);
     b.remove();
     if (isgate(a) && isgate(b)) {
         if (b.type != a.type)
@@ -349,14 +403,15 @@ function interact(a, b) {
     else if (!isgate(a) && !isgate(b)) {
     }
     else {
-        if (isgate(a))
-            [a, b] = [b, a];
-        erase(b, a);
+        if (a.type == ERA)
+            erase(b, a);
+        else
+            throw new Error('invalid interaction');
     }
 }
 function display() {
     mapall(n => n.display());
-    displaysvg.innerHTML = edge_group.outerHTML + node_group.outerHTML;
+    displaysvg.innerHTML = edges.map(e => e.element.outerHTML).join('') + nodes.map(n => n.element.outerHTML).join('');
 }
 function energy() {
     return nodes.concat(edges).map(n => n.energy()).reduce((a, b) => a + b);
@@ -397,7 +452,9 @@ displaysvg.addEventListener('mousedown', e => {
     if (last_target != null)
         last_target.color(false);
     if (e.target != displaysvg) {
+        console.log(e.target);
         let tid = e.target.id;
+        console.log(tid);
         last_target = nodes.find(n => n.id == tid);
         if (last_target)
             last_target.color(true);
@@ -418,13 +475,33 @@ displaysvg.addEventListener('mousemove', e => {
     display();
 });
 document.addEventListener('mouseup', () => drag_start = drag_target = undefined);
+{
+    let code = '@main = res\n  & {res a} ~ (b c)';
+    if (localStorage['code'] != undefined)
+        code = localStorage['code'];
+    if (window.location.search)
+        code = window.location.search.slice(1);
+    set_code(code);
+}
+function get_code() {
+    let code = codecontent.value;
+    return code;
+}
+function set_code(code) {
+    code = decodeURIComponent(code);
+    code = code.replace(/\n@/g, '@@').replace(/\s+/g, ' ');
+    code = code.replace(/@@/g, '\n\n@').replace(/&/g, '\n  &');
+    codecontent.value = code;
+    parse_code(code);
+    localStorage['code'] = code;
+}
 function toggle_code() {
     if (!show_code) {
         displaysvg.style.display = 'none';
         codeeditor.style.display = 'flex';
     }
     else {
-        let code = codecontent.textContent;
+        let code = codecontent.value;
         try {
             parse_code(code);
         }

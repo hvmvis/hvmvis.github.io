@@ -16,7 +16,9 @@
       color: var(--color);
       padding: 0;
       margin:0;
+      font-family: monospace;
     }
+
     @media (prefers-color-scheme: dark){
       body{
         --color:white;
@@ -24,7 +26,6 @@
       }
     }
     #codeblock{
-
       font-family: monospace;
       white-space: pre-wrap;
       display: none;
@@ -32,6 +33,17 @@
       padding-left: 4em;
       display: none;
     }
+
+    textarea{
+      width: 100%;
+      height: 100%;
+      border: none;
+      background-color: var(--bg);
+      color: var(--color);
+      font-family: monospace;
+      font-size: 1em;
+    }
+
     #files{
       width:150px;
       text-align: left;
@@ -67,9 +79,8 @@
     <div id="codeblock">
         <div id="files">
         </div>
-        <div id="codecontent" contenteditable>
-          @main = res & {res a} ~ (v1 (v2 a))
-        </div>
+        <textarea id="codecontent" rows="50" cols="50"></textarea>
+
         <div id="errormsg"></div>
       </div>
       <button onclick="toggle_code()">&lt;code&gt; (command + enter)</button>
