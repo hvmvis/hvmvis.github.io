@@ -448,7 +448,7 @@ function interact(a:Terminal, b:Terminal){
     else annihilate(a,b)
   }else if (!isgate(a) && !isgate(b)){
   }else{
-    if (a.type == ERA) erase(b as Gate, a)
+    if (a.type == ERA || a.type == VAR) erase(b as Gate, a)
     else throw new Error('invalid interaction')
   }
 }

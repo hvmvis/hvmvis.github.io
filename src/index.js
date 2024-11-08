@@ -409,7 +409,7 @@ function interact(a, b) {
     else if (!isgate(a) && !isgate(b)) {
     }
     else {
-        if (a.type == ERA)
+        if (a.type == ERA || a.type == VAR)
             erase(b, a);
         else
             throw new Error('invalid interaction');
