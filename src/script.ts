@@ -1,6 +1,4 @@
 const [MAIN, LEFT, RIGHT] = [0,1,2]
-const [OUT, REF, VAR, APP, DUP, ERA, LAM, SUP, NUL] = [0,1,2,3,4,5,6,7,8]
-
 const displaysvg = document.querySelector('svg#mySvg') as SVGElement;
 displaysvg.setAttribute('width', document.documentElement.clientWidth.toString())
 displaysvg.setAttribute('height', document.documentElement.clientHeight.toString())
@@ -76,20 +74,22 @@ export class El{
   }
 }
 
+
+
 export class Terminal extends El{
-  type: number
   pos = v0
   vel = v0
   connections: (Edge | null)[] = [null];
   port_pos: Vec2[] = [v0]
   rotation: number = 0;
-  dot:SVGElement|null = null
+  dot:SVGElement
   tag:string = ''
-  constructor(type=OUT, pos:Vec2|null=null){
+  constructor(pos:Vec2|null=null){
     super();
-    this.type = type
+    this.dot = this.create_dot()
+    this.element.appendChild(this.dot)
     this.pos = pos == null ? new Vec2((Math.random()-0.5) * displaysvg.clientWidth, (Math.random()-0.5) * displaysvg.clientHeight): pos
-    node_group.appendChild(this.element)  ;
+    node_group.appendChild(this.element);
     nodes.push(this);
     this.color(false);
   }
@@ -104,14 +104,16 @@ export class Terminal extends El{
     this.element.appendChild(text)
   }
 
+  create_dot():SVGElement{
+    let dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+    dot.setAttribute('r', '5')
+    dot.setAttribute('stroke', 'var(--color)')
+    dot.id = this.id
+    return dot
+  }
+
   create_element():SVGElement{
-    this.dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    this.dot.setAttribute('r', '5')
-    this.dot.setAttribute('stroke', 'var(--color)')
-    this.dot.id = this.id
-    let group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-    group.appendChild(this.dot)
-    return group
+    return document.createElementNS('http://www.w3.org/2000/svg', 'g')
   }
   
   repforce = 100.
@@ -158,7 +160,7 @@ export class Terminal extends El{
   get_right(){return this.connections[2]}
 
   color(active:boolean){
-    this.element.setAttribute('fill', active ? 'red': (this.type == OUT || this.type == DUP)? 'white':'black');
+    this.element.setAttribute('fill', active ? 'red' : 'black');
     for (let e of this.connections){
       if (e != null) e.color(active);
     }
@@ -167,15 +169,21 @@ export class Terminal extends El{
 
 export class Gate extends Terminal {
   connections: [Edge | null, Edge | null, Edge | null]
-  constructor(type = DUP, pos:null|Vec2=null){
-    super(type, pos);
+  constructor(pos:null|Vec2=null){
+    super(pos);
     this.connections = [null, null, null];
   }
 
+  create_dot(){
+    let dot = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    dot.setAttribute('stroke', 'var(--color)');
+    dot.id = this.id;
+    return dot
+  }
+
   create_element():SVGElement{
-    let element = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    element.setAttribute('stroke', 'var(--color)');
-    return element;
+    let group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    return group;
   }
 
   update(){
@@ -185,9 +193,55 @@ export class Gate extends Terminal {
   }
 
   display(){
-    let points = [0, 1, 2].map(i => this.pos.add(new Vec2(10 * Math.cos(this.rotation + i * Math.PI/3*2), 10 * Math.sin(this.rotation + i * Math.PI/3*2)).sub(cam_pos))
-    ).map(p => `${p.x}, ${p.y}`).join(' ');
-    this.element.setAttribute('points', points);
+    super.display();
+    let points = [0, 1, 2].map(i => new Vec2(10 * Math.cos(this.rotation + i * Math.PI/3*2), 10 * Math.sin(this.rotation + i * Math.PI/3*2)))
+    .map(p => `${p.x}, ${p.y}`).join(' ');
+    this.dot.setAttribute('points', points);
+  }
+}
+
+type OP = "ADD" | "SUB" | "MUL" | "DIV"
+
+class Erase extends Terminal{}
+
+class Ref extends Terminal{}
+
+class Out extends Terminal{
+  color(active:boolean){
+    super.color(active)
+    this.dot.setAttribute('fill', active?'red':'white')
+  }
+}
+
+class Num extends Terminal{
+  operator : OP | null = null
+  value : number
+  constructor(value:number, operator:OP|null= null){
+    super()
+    this.value = value
+    this.operator = operator
+    this.set_text(`${operator ?? ''} ${value}`)
+  }
+}
+
+class Duplicator extends Gate{
+  color(active: boolean){
+    super.color(active)
+    this.dot.setAttribute('fill', active?'red':'white')
+  }
+}
+
+class Switch extends Gate{
+  constructor(){
+    super()
+    this.set_text('?')
+  }
+}
+
+class Operator extends Gate{
+  constructor(){
+    super()
+    this.set_text('$')
   }
 }
 
@@ -209,7 +263,7 @@ export class Edge extends El{
     edges.push(this);
     this.start.node.connections[this.start.side] = this;
     this.end.node.connections[this.end.side] = this;
-    if (start.side==MAIN && end.side==MAIN && start.node.type != OUT && end.node.type != OUT)merge_stack.push(this);
+    if (this.start.side == MAIN && this.end.side == MAIN && !(this.start.node instanceof Out) && !(this.end.node instanceof Out)) merge_stack.push(this)
   }
 
   create_element(): SVGElement {
@@ -267,17 +321,13 @@ const fn_definitons: Map<string, Terminal> = new Map();
 
 
 function parse_code(code:string){
-  console.log(code);
 
-  code = `@main=r 
-  &(r *)~{a (b a)}`
+  console.log(code);
+  
 
   mapall(n=>n.remove())
   fn_definitons.clear();
-  let toks:string[] = code.match(/[@,a-z,0-9]+|\(|\)|\{|\}|\[|\]|=|&|\*|~/g) || [];
-  console.log(toks);
-  
-
+  let toks:string[] = code.match(/[@,a-z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~/g) || [];  
   function get_token(){
     return toks.shift()
   }
@@ -293,12 +343,14 @@ function parse_code(code:string){
   }
 
   function parse_net(){
+    console.log('parse_net');
+    
     vartable.clear()
     const fn_name = get_token()!
     assert(fn_name.startsWith('@'), `no @`)
     assert(get_token() == '=', `no =`)
-    let head = new Terminal(OUT)
-    head.set_text(fn_name)
+    let head = new Out()
+    head.set_text(fn_name.slice(1))
     fn_definitons.set(fn_name.slice(1), head)
     let a = parse_tree()
     new Edge({node:head, side:MAIN}, a)
@@ -317,10 +369,17 @@ function parse_code(code:string){
   
   function parse_tree():Port{
     let tok = peek_token();
-    if (!["(", "{",].includes(tok))return parse_atom()
+
+    let brackets:Record<string,typeof Gate> = {
+      "(": Gate,
+      "{": Duplicator,
+      "$(": Operator,
+      "?(": Switch
+    }
+
+    if (!brackets[tok]) return parse_atom()
     get_token()
-    let typ = tok=="(" ? DUP : SUP
-    let node = new Gate(typ)
+    let node = new brackets[tok]()
     let a = parse_tree()
     new Edge({node, side:LEFT}, a)
     let b = parse_tree()
@@ -332,30 +391,26 @@ function parse_code(code:string){
 
   function parse_atom(){
     let token = get_token()!
-    console.log(token);
-    
-    let t = VAR
+    let t:typeof Terminal = Erase
     let tag = ''
-    if (token == '*') t = ERA
-    else if (token.startsWith('@')) {
-      t = REF
+    if (token == '*'){t = Erase
+    }else if (token.startsWith('@')) {
+      t = Ref
       tag = token.slice(1)
     } else {
       if (vartable.has(token)){
-
-        console.log('vartable:', vartable);
-        
         let nd = vartable.get(token)!
         nd.remove()
         let res = nd.connections[MAIN]!.other({node:nd, side:MAIN})
         nd.connections[MAIN]!.remove()
         return res
       }
-      let nd = new Terminal(VAR)
+      let nd = new Terminal()
       vartable.set(token, nd)
       return {node:nd, side:MAIN}
     }
-    let node = new Terminal(t)
+    let node = new t()
+
     node.set_text(tag)
     return {node:node, side:MAIN}
   }
@@ -396,7 +451,7 @@ function physics(){
 function copy_graph(graph:Terminal, map:Map<Terminal, Terminal>):Terminal{
 
   if (map.has(graph)) return map.get(graph)!;
-  let new_node = new (graph.constructor as typeof Terminal)(graph.type, graph.pos);
+  let new_node = new (graph.constructor as typeof Terminal)();
   new_node.set_text(graph.tag)
   map.set(graph, new_node);
 
@@ -417,6 +472,8 @@ function merge_ports(a:Port, b:Port){
 }
 
 function annihilate(a:Gate, b:Gate){
+  console.log('annihilate', a, b);
+  
   [LEFT,RIGHT].map(i=>merge_ports({node:a, side:i}, {node:b, side:i}))
 }
 
@@ -427,26 +484,25 @@ function replaceport(newport:Port, oldport:Port){
 }
 
 function commute(a:Gate, b:Gate){
-  let newgates = [0,0,1,1].map((h)=>new Gate([b,a][h].type, [a,b][h].pos));
+  let newgates:Gate[] = [0,0,1,1].map((h)=>new ((h==0?b:a).constructor as typeof Gate)((h==0?a:b).pos));  
   ([0,0,1,1]).map((h,i)=>{
     let m = i%2
     new Edge({node:newgates[h], side:[LEFT, RIGHT][m]}, {node:newgates[2+m], side:[LEFT, RIGHT][h]})
     replaceport({node:newgates[i], side:MAIN}, {node:h?b:a, side:m==0?LEFT:RIGHT})
-    return newgates[i]
-  }).map(anneal)
+  })
+  newgates.map(anneal)
 }
 
 function erase(node:Gate, term:Terminal){
   [LEFT,RIGHT].map(side=>{
-    let newnode = new Terminal(term.type, term.pos)
+    let newnode = new (term.constructor as typeof Terminal)(term.pos)
     replaceport({node:newnode, side:MAIN}, {node, side})
     return newnode
   }).map(anneal)
 }
 
 function call(fn_name:string, gate:Terminal){
-  console.log("fname:",fn_name,'gat:', gate);
-  
+
   let fn = fn_definitons.get(fn_name)
   let mp = new Map()
 
@@ -465,19 +521,24 @@ function call(fn_name:string, gate:Terminal){
 }
 
 function interact(a:Terminal, b:Terminal){
-  let isgate = (n:Terminal)=> n instanceof Gate
-  if (isgate(a)) [a, b] = [b, a]
+  
+  if (a instanceof Gate) [a,b] = [b,a]
   a.remove()
-  if (a.type == REF) return call(a.tag, b)
+  if (a instanceof Ref) return call(a.tag, b)
   b.remove()
-  if (isgate(a) && isgate(b)){
-    if (b.type != a.type) commute(a,b)
+  let [consa, consb] = [a,b].map(n=>n.constructor.name)
+  if (a instanceof Gate && b instanceof Gate){
+    if (consa != consb) commute(a,b)
     else annihilate(a,b)
-  }else if (!isgate(a) && !isgate(b)){ // void
+  }else if (a instanceof Erase){
+    if (b instanceof Gate) erase(b, a)
+    else{}// void
+  }else if (a instanceof Ref){
+    call(a.tag, b)
   }else{
-    if (a.type == ERA || a.type == VAR) erase(b as Gate, a)
-    else throw new Error('invalid interaction')
+    throw new Error('invalid interaction')
   }
+
 }
 
 function display(){
@@ -571,6 +632,7 @@ function toggle_code(){
   if (!show_code){
     displaysvg.style.display = 'none';
     codeeditor.style.display = 'flex';
+    codecontent.focus();
   }else{
     let code = codecontent.value!     
     set_code(code)
