@@ -668,7 +668,7 @@ function operate(Op:Operator, arg:Num){
     }
   }
   new Edge({node:nd, side:MAIN}, out)
-  nd.pos = arg.pos
+  nd.pos = Op.pos
   anneal(nd)
 }
 
