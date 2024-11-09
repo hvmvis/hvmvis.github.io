@@ -550,8 +550,9 @@ function physics(){
 function copy_graph(graph:Terminal, map:Map<Terminal, Terminal>):Terminal{
 
   if (map.has(graph)) return map.get(graph)!;
-  let new_node = new (graph.constructor as typeof Terminal)();
-  new_node.set_text(graph.tag)
+  // let new_node = new (graph.constructor as typeof Terminal)();
+  // new_node.set_text(graph.tag)
+  let new_node = graph.copy()
   map.set(graph, new_node);
 
   graph.connections.map(e=>{
@@ -589,13 +590,15 @@ function commute(a:Gate, b:Gate){
     new Edge({node:newgates[h], side:[LEFT, RIGHT][m]}, {node:newgates[2+m], side:[LEFT, RIGHT][h]})
     replaceport({node:newgates[i], side:MAIN}, {node:h?b:a, side:m==0?LEFT:RIGHT})
   })
-  anneal(...newgates)
+  // for(let i=0; i<20; i++)anneal(...newgates)
+  // newgates.map(n=>anneal(n))
+  newgates.map(n=>anneal(10,n))
 }
 
 function erase(node:Gate, term:Terminal){
   console.log('erase', node, term);
   
-  anneal(...[LEFT,RIGHT].map(side=>{
+  anneal(20, ...[LEFT,RIGHT].map(side=>{
     let newnode = term.copy()
     replaceport({node:newnode, side:MAIN}, {node, side})
     return newnode
@@ -614,9 +617,9 @@ function call(fn_name:string, gate:Terminal){
   for (let n of mp.values()){
     n.pos = n.pos.add(gate.pos).sub(fn!.pos)
   }
-  for (let i=0; i<20; i++){
+  for (let i=0; i<4; i++){
     for (let n of mp.values()){
-      anneal(n)
+      anneal(20,n)
     }
   }
 }
@@ -638,7 +641,7 @@ function _switch(index:Num, arg:Switch){
     let c = con(Gate, ret, {node:era, side:MAIN})
     c.pos = arg.pos
     new Edge(arr, c)
-    for(let i=0;i<4;i++) anneal(c, era)
+    for(let i=0;i<4;i++) anneal(100,c, era)
   } else if (index.value == null){
     assert (index.value != null, `index value is null`, index)
   }else{
@@ -654,7 +657,7 @@ function _switch(index:Num, arg:Switch){
     new Edge(newnum, g2)
     new Edge({node:g1, side:RIGHT}, {node:g2, side:LEFT})
     new Edge({node:g2, side:RIGHT}, ret)
-    for(let i=0;i<4;i++) anneal(g1, g2, era, newnum)
+    for(let i=0;i<4;i++) anneal(100,g1, g2, era, newnum)
   }
 }
 
@@ -682,7 +685,7 @@ function operate(Op:Operator, arg:Num){
   }
   new Edge({node:nd, side:MAIN}, out)
   nd.pos = Op.pos
-  anneal(nd)
+  anneal(100,nd)
 }
 
 function interact(a:Terminal, b:Terminal){
@@ -722,8 +725,7 @@ function display(){
 
 let show_code = false;
 
-function anneal(...nodes:Terminal[]){
-  let d = 100
+function anneal(d:number=100, ...nodes:Terminal[]){
   function geten(node:Terminal){
     return node.energy() + node.connections.map(e=>e?.energy()??0).reduce((a,b)=>a+b)
   }
@@ -737,7 +739,7 @@ function anneal(...nodes:Terminal[]){
   }
 }
 function layout(){
-  for (let i = 0; i < 40; i++) nodes.forEach(node=>anneal(node))
+  for (let i = 0; i < 40; i++) anneal(100, ...nodes)
   let avg_pos = nodes.map(n=>n.pos).reduce((a,b)=>a.add(b)).mul(1/nodes.length)
   cam_pos = avg_pos.sub(center)
 }
