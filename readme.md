@@ -5,7 +5,7 @@
 
 pure html/js visualisation of Interaction Combinators, see [victor](https://gist.github.com/VictorTaelin) [taelin](https://x.com/victorTaelin) for explanations
 
-visit: https://hvmvis.github.io to try it out
+[try it out now](https://hvmvis.github.io
 
 navigation:
 
