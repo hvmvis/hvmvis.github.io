@@ -1,21 +1,7 @@
-// {
-//   "compilerOptions": {
-//     "target": "es2016",
-//     "module": "commonjs",
-//     "esModuleInterop": true,                             /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */
-//     "forceConsistentCasingInFileNames": true,            /* Ensure that casing is correct in imports. */
-
-//     "strict": true, 
-//     "skipLibCheck": true,                                 /* Skip type checking all .d.ts files. */
-//     "rootDir": "./src",
-//     "outDir": "./dist"
-//   }
-// }
-
 {
   "compilerOptions": {
     "target": "es2016",
-    "module": "esnext",    // Change this from "commonjs" to "esnext"
+    "module": "esnext",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -24,5 +10,5 @@
     "rootDir": "./src",
     "outDir": "./dist"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/parser.js"]
 }

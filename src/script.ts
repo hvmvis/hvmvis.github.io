@@ -53,7 +53,7 @@ const v0 = new Vec2(0, 0)
 const center = new Vec2(displaysvg.clientWidth/2, displaysvg.clientHeight/2)
 let cam_pos = new Vec2(0, 0)
 
-class El{
+export class El{
   removed = false;
   id: string 
   element: SVGElement
@@ -76,7 +76,7 @@ class El{
   }
 }
 
-class Terminal extends El{
+export class Terminal extends El{
   type: number
   pos = v0
   vel = v0
@@ -111,7 +111,6 @@ class Terminal extends El{
     this.dot.id = this.id
     let group = document.createElementNS('http://www.w3.org/2000/svg', 'g')
     group.appendChild(this.dot)
-    // group.appendChild(text)
     return group
   }
   
@@ -166,7 +165,7 @@ class Terminal extends El{
   }
 }
 
-class Gate extends Terminal {
+export class Gate extends Terminal {
   connections: [Edge | null, Edge | null, Edge | null]
   constructor(type = DUP, pos:null|Vec2=null){
     super(type, pos);
@@ -194,7 +193,7 @@ class Gate extends Terminal {
 
 type Port = {node:Terminal, side:number}
 
-class Edge extends El{
+export class Edge extends El{
   start:Port
   end:Port
   constructor(start:Port, end:Port){
@@ -266,78 +265,102 @@ class Edge extends El{
 
 const fn_definitons: Map<string, Terminal> = new Map();
 
+
 function parse_code(code:string){
-  console.log("parsing code", code);
-  
-  fn_definitons.clear();
-  displaysvg.innerHTML= ''
+  console.log(code);
+
+  code = `@main=r 
+  &(r *)~{a (b a)}`
+
   mapall(n=>n.remove())
-  console.log(nodes, edges, merge_stack);
+  fn_definitons.clear();
+  let toks:string[] = code.match(/[@,a-z,0-9]+|\(|\)|\{|\}|\[|\]|=|&|\*|~/g) || [];
+  console.log(toks);
   
-  
-  code.split('\n@').slice(1).map(code=>{
-    console.log(`parsing function: ${code}`);
-    
-    code = code.replace(/\s+/g, ' ')
-    
-    const vartable = new Map();
-    const fn_name = code.split('=')[0].trim();
-    const fn_body = code.split('=')[1].split('&');
-    const fn = new Terminal(OUT);
-    fn.set_text(fn_name)
-    fn_definitons.set(fn_name, fn);
 
-    new Edge({node:fn, side:MAIN}, build_tree(fn_body[0], vartable));
-    fn_body.slice(1).forEach(line=>{
-      try{
-        let parts = line.split('~').map(l=>build_tree(l, vartable));
-        new Edge(parts[0], parts[1]);
-      } catch(error){
-        errormsg.textContent = `error in line: ${line}`
-        throw error
-      }
-    })
-  })
-  layout()
-}
+  function get_token(){
+    return toks.shift()
+  }
+  function peek_token() {return toks[0]}
 
-function build_tree(term:string, vartable:Map<string, Terminal>){
-  term = term.trim();
-  if (!['(', '{', '['].includes(term[0])){
-    if (term=='*') {
-      let nd = new Terminal(ERA);
-      return {node:nd, side:MAIN};
-    }else if (term.startsWith('@')){
-      let nd = new Terminal(REF);
-      nd.set_text(term);
-      return {node:nd, side:MAIN};
-    }else if (vartable.has(term)){
-      let nd = vartable.get(term)!;
-      let res = nd.connections[0]!.other({node:nd, side:MAIN});
-      nd.remove();
-      nd.connections[MAIN]!.remove();
-      return res;
-    }else{
-      let nd = new Terminal(VAR);
-      vartable.set(term, nd);
-      return {node:nd, side:MAIN};
+  const vartable:Map<string, Terminal> = new Map();
+  parse_book()
+
+  function parse_book(){
+    while (toks.length > 0){
+      parse_net()
     }
   }
 
-  let nd = new Gate(term[0] == '(' ? DUP : SUP);
-  term = term.slice(1, -1);
-  let ctr = 0;
-  let stack = '';
-  for (let c of term){
-    stack += c;
-    if (['(', '{', '['].includes(c)) ctr+=1;
-    if ([')', '}', ']'].includes(c)) ctr-=1;
-    if (([')', '}', ']'].includes(c) || c == ' ') && ctr == 0) break;
+  function parse_net(){
+    vartable.clear()
+    const fn_name = get_token()!
+    assert(fn_name.startsWith('@'), `no @`)
+    assert(get_token() == '=', `no =`)
+    let head = new Terminal(OUT)
+    head.set_text(fn_name)
+    fn_definitons.set(fn_name.slice(1), head)
+    let a = parse_tree()
+    new Edge({node:head, side:MAIN}, a)
+    while (peek_token() == '&'){
+      get_token()
+      parse_redex()
+    }
   }
-  let stackb = term.slice(stack.length);
-  new Edge({node:nd, side:LEFT}, build_tree(stack, vartable));
-  new Edge({node:nd, side:RIGHT}, build_tree(stackb, vartable));
-  return {node:nd, side:MAIN};
+
+  function parse_redex(){
+    let a = parse_tree()
+    assert (get_token() == '~', `no ~`)
+    let b = parse_tree()
+    new Edge(a, b)
+  }
+  
+  function parse_tree():Port{
+    let tok = peek_token();
+    if (!["(", "{",].includes(tok))return parse_atom()
+    get_token()
+    let typ = tok=="(" ? DUP : SUP
+    let node = new Gate(typ)
+    let a = parse_tree()
+    new Edge({node, side:LEFT}, a)
+    let b = parse_tree()
+    new Edge({node, side:RIGHT}, b)
+    let end = get_token()
+    assert(end == ")" || end == "}", `invalid end token ${end}`)
+    return {node, side:MAIN}
+  }
+
+  function parse_atom(){
+    let token = get_token()!
+    console.log(token);
+    
+    let t = VAR
+    let tag = ''
+    if (token == '*') t = ERA
+    else if (token.startsWith('@')) {
+      t = REF
+      tag = token.slice(1)
+    } else {
+      if (vartable.has(token)){
+
+        console.log('vartable:', vartable);
+        
+        let nd = vartable.get(token)!
+        nd.remove()
+        let res = nd.connections[MAIN]!.other({node:nd, side:MAIN})
+        nd.connections[MAIN]!.remove()
+        return res
+      }
+      let nd = new Terminal(VAR)
+      vartable.set(token, nd)
+      return {node:nd, side:MAIN}
+    }
+    let node = new Terminal(t)
+    node.set_text(tag)
+    return {node:node, side:MAIN}
+  }
+  layout()
+
 }
 
 function mapall(fn:(x:Edge|Terminal)=>void){
@@ -346,6 +369,7 @@ function mapall(fn:(x:Edge|Terminal)=>void){
 }
 
 function update(){mapall(n=>n.update())}
+
 function physics(){
   if (merge_stack.length > 0){
 
@@ -421,8 +445,11 @@ function erase(node:Gate, term:Terminal){
 }
 
 function call(fn_name:string, gate:Terminal){
+  console.log("fname:",fn_name,'gat:', gate);
+  
   let fn = fn_definitons.get(fn_name)
   let mp = new Map()
+
   let head = copy_graph(fn!, mp)
   replaceport({node:gate, side:MAIN}, {node:head, side:MAIN})
   head.remove()
@@ -441,7 +468,7 @@ function interact(a:Terminal, b:Terminal){
   let isgate = (n:Terminal)=> n instanceof Gate
   if (isgate(a)) [a, b] = [b, a]
   a.remove()
-  if (a.type == REF) return call(a.tag.slice(1), b)
+  if (a.type == REF) return call(a.tag, b)
   b.remove()
   if (isgate(a) && isgate(b)){
     if (b.type != a.type) commute(a,b)
@@ -459,10 +486,6 @@ function display(){
   
   mapall(n=>n.display());
   displaysvg.innerHTML = edges.map(e=>e.element.outerHTML).join('') + nodes.map(n=>n.element.outerHTML).join('')
-}
-
-function energy(){
-  return (nodes as (Terminal|Edge)[]).concat(edges).map(n=>n.energy()).reduce((a,b)=>a+b)
 }
 
 let show_code = false;
@@ -507,6 +530,8 @@ displaysvg.addEventListener('mousedown', e=>{
     last_target = nodes.find(n=>n.id == tid) as Terminal;
     if (last_target) last_target.color(true);
     drag_target = last_target;
+    console.log(last_target);
+    
   }else drag_start = new Vec2(e.offsetX, e.offsetY).add(cam_pos);
   display()
 })
@@ -530,11 +555,6 @@ document.addEventListener('mouseup', ()=> drag_start = drag_target = undefined)
     window.history.pushState({}, document.title, window.location.pathname);
   }
   set_code(code)
-}
-
-function get_code(){
-  let code = codecontent.value!
-  return code
 }
 
 function set_code(code:string){
