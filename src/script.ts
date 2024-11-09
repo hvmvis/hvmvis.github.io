@@ -327,7 +327,7 @@ function parse_code(code:string){
 
   mapall(n=>n.remove())
   fn_definitons.clear();
-  let toks:string[] = code.match(/[@,a-z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~/g) || [];  
+  let toks:string[] = code.match(/[@,a-z,A-Z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~/g) || [];  
   function get_token(){
     return toks.shift()
   }
