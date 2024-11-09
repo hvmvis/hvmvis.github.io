@@ -202,7 +202,6 @@ export class Gate extends Terminal {
     this.connections = [null, null, null];
   }
 
-
   create_dot(){
     let dot = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     dot.setAttribute('stroke', 'var(--color)');
@@ -226,6 +225,11 @@ export class Gate extends Terminal {
     let points = [0, 1, 2].map(i => new Vec2(10 * Math.cos(this.rotation + i * Math.PI/3*2), 10 * Math.sin(this.rotation + i * Math.PI/3*2)))
     .map(p => `${p.x}, ${p.y}`).join(' ');
     this.dot.setAttribute('points', points);
+  }
+
+  color(active:boolean){
+    super.color(active)
+    this.dot.setAttribute('fill', 'white')
   }
 }
 
@@ -272,7 +276,6 @@ class Out extends Terminal{
 //  | ":>>" -- (FP_SHR)
 //  | ":<<" -- (FP_SHL)
 
-
 class Num extends Terminal{
   operator : string | null = null
   value : number | null
@@ -295,7 +298,7 @@ class Num extends Terminal{
 class Duplicator extends Gate{
   color(active: boolean){
     super.color(active)
-    this.dot.setAttribute('fill', active?'red':'white')
+    this.dot.setAttribute('fill', active?'red':'black')
   }
 }
 
