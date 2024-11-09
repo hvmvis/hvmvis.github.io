@@ -14,4 +14,7 @@ navigation:
 - `command enter` to toggle code view
 - https://hvmvis.github.io?@main=({(a,R)(a,b)}(b,R)) add `?` + formula to the url to visaualize the any net
 
+## contribution
+
+please make sure minimal amount of code is added. Goal is to keep this repo lean and mean >:(
 
