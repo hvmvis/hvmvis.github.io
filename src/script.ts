@@ -405,7 +405,7 @@ function parse_code(code:string){
         nd.connections[MAIN]!.remove()
         return res
       }
-      let nd = new Terminal()
+      let nd = new t()
       vartable.set(token, nd)
       return {node:nd, side:MAIN}
     }
@@ -536,6 +536,8 @@ function interact(a:Terminal, b:Terminal){
   }else if (a instanceof Ref){
     call(a.tag, b)
   }else{
+    console.log(a, b);
+    
     throw new Error('invalid interaction')
   }
 
