@@ -653,13 +653,13 @@ import example_nets from './example_nets'
   example_nets.map(([name,code])=>{
     const url = document.createElement('a');
     url.textContent = `${name}`;
-    url.href = `?${encodeURIComponent(code)}`;
+    url.href = `?${code}`;
     files.appendChild(url);
   })
   files.appendChild(document.createElement('br'))
   let a = document.createElement('a');
   a.textContent = 'readme';
-  a.href = '/readme';
+  a.href = '/readme.html';
   files.appendChild(a);
 }
 

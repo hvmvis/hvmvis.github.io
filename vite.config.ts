@@ -5,5 +5,12 @@ export default defineConfig({
   build: {
     outDir: '../',  // Output to 'root'
     target: 'es2016',   // Match your TypeScript target
+    rollupOptions:{
+      input: {
+        main: './src/index.html',
+        readme: './src/readme.html',
+      }
+
+    }
   },
 });
