@@ -6,6 +6,19 @@ const codeeditor = document.querySelector('#codeblock') as HTMLElement;
 const codecontent = codeeditor.querySelector('#codecontent') as HTMLTextAreaElement;
 const errormsg = document.querySelector('#errormsg') as HTMLElement;
 
+document.addEventListener('keydown', e=>{
+  if (e.code == 'Space'){
+    if (!show_code){
+      e.preventDefault();
+      running = !running;
+    }
+  }
+  if (e.code == 'Enter' && e.metaKey) toggle_code();
+})
+
+document.getElementById('codebutton')?.addEventListener('click', toggle_code)
+
+
 let merge_stack:Edge[] = []
 let running = true;
  
@@ -820,13 +833,3 @@ import example_nets from './example_nets'
   a.href = '/readme.html';
   files.appendChild(a);
 }
-
-document.addEventListener('keydown', e=>{
-  if (e.code == 'Space'){
-    if (!show_code){
-      e.preventDefault();
-      running = !running;
-    }
-  }
-  if (e.code == 'Enter' && e.metaKey) toggle_code();
-})
