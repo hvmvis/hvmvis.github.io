@@ -22,7 +22,7 @@ document.getElementById('codebutton')?.addEventListener('click', toggle_code)
 let merge_stack:Edge[] = []
 let running = true;
  
-function assert (val:boolean, msg:any, ...els:El[]){
+function assert (val:boolean, msg:any, ...els:Visible[]){
   if (!val) {
     els.forEach(el=>el.color(true))
     try{
@@ -39,7 +39,7 @@ function assert (val:boolean, msg:any, ...els:El[]){
 const edge_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 const node_group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
-let nodes:Terminal[] = [];
+let nodes:Node[] = [];
 let edges:Edge[] = [];
 
 class Vec2{
@@ -65,7 +65,7 @@ const v0 = new Vec2(0, 0)
 const center = new Vec2(displaysvg.clientWidth/2, displaysvg.clientHeight/2)
 let cam_pos = new Vec2(0, 0)
 
-export class El{
+export class Visible{
   removed = false;
   id: string 
   element: SVGElement
@@ -84,17 +84,16 @@ export class El{
   }
   unremove(){
     this.removed = false;
-    (this.element instanceof Terminal ? node_group : edge_group).appendChild(this.element)
+    (this.element instanceof Node ? node_group : edge_group).appendChild(this.element)
   }
   color(active:boolean){
     this.element.setAttribute('stroke', active ? 'red':'var(--color)');
   }
 }
 
+type Connectable = Node | Port
 
-type Connectable = Terminal | Port
-
-export class Terminal extends El{
+export class Node extends Visible{
   pos = v0
   vel = v0
   connections: (Edge | null)[] = [null];
@@ -115,8 +114,8 @@ export class Terminal extends El{
   }
 
 
-  copy():Terminal{
-    let res = new (this.constructor as typeof Gate)(this.pos)
+  copy():Node{
+    let res = new (this.constructor as typeof Binary)(this.pos)
     res.set_text(this.tag)
     return res
   }
@@ -195,7 +194,7 @@ export class Terminal extends El{
 }
 
 
-export class Gate extends Terminal {
+class Binary extends Node {
   connections: [Edge | null, Edge | null, Edge | null]
   constructor(pos:null|Vec2=null){
     super(pos);
@@ -233,50 +232,20 @@ export class Gate extends Terminal {
   }
 }
 
-class Erase extends Terminal{}
+abstract class Nullary extends Node{}
 
-class Ref extends Terminal{}
+class Erase extends Nullary{}
 
-class Out extends Terminal{
+class Ref extends Nullary{}
+
+class Out extends Nullary{
   color(active:boolean){
     super.color(active)
     this.dot.setAttribute('fill', active?'red':'white')
   }
 }
 
-
-// <Numeric> ::=
-//  | <Number>
-//  | <Operator>
-// <Number> ::=
-//  | <Nat>
-//  | <Int>
-//  | <Float>
-// <Operator> ::=
-//  | "[" <Operation> "]" -- (unapplied)
-//  | "[" <Operation> <Number> "]" -- (partially applied)
-// <Operation> ::=
-//  | "+" -- (ADD)
-//  | "-" -- (SUB)
-//  | "*" -- (MUL)
-//  | "/" -- (DIV)
-//  | "%" -- (REM)
-//  | "=" -- (EQ)
-//  | "!" -- (NEQ)
-//  | "<" -- (LT)
-//  | ">" -- (GT)
-//  | "&" -- (AND)
-//  | "|" -- (OR)
-//  | "^" -- (XOR)
-//  | ">>" -- (SHR)
-//  | "<<" -- (SHL)
-//  | ":-" -- (FP_SUB)
-//  | ":/" -- (FP_DIV)
-//  | ":%" -- (FP_REM)
-//  | ":>>" -- (FP_SHR)
-//  | ":<<" -- (FP_SHL)
-
-class Num extends Terminal{
+class Num extends Nullary{
   operator : string | null = null
   value : number | null
   constructor(value:number|null, operator:string|null= null){
@@ -295,30 +264,32 @@ class Num extends Terminal{
 }
 
 
-class Duplicator extends Gate{
+class Connector extends Binary{}
+
+class Duplicator extends Binary{
   color(active: boolean){
     super.color(active)
     this.dot.setAttribute('fill', active?'red':'black')
   }
 }
 
-class Switch extends Gate{
+class Switch extends Binary{
   constructor(){
     super()
     this.set_text('?')
   }
 }
 
-class Operator extends Gate{
+class Operator extends Binary{
   constructor(){
     super()
     this.set_text('$')
   }
 }
 
-type Port = {node:Terminal, side:number}
+type Port = {node:Node, side:number}
 
-export class Edge extends El{
+export class Edge extends Visible{
   start:Port
   end:Port
   constructor(start:Connectable, end:Connectable){
@@ -388,7 +359,7 @@ export class Edge extends El{
   }
 }
 
-const fn_definitons: Map<string, Terminal> = new Map();
+const fn_definitons: Map<string, Node> = new Map();
 
 
 function parse_code(code:string){
@@ -404,7 +375,7 @@ function parse_code(code:string){
   }
   function peek_token() {return toks[0]}
 
-  const vartable:Map<string, Terminal> = new Map();
+  const vartable:Map<string, Node> = new Map();
   parse_book()
 
   function parse_book(){
@@ -439,8 +410,8 @@ function parse_code(code:string){
   function parse_tree():Port{
     let tok = peek_token();
 
-    let brackets:Record<string,typeof Gate> = {
-      "(": Gate,
+    let brackets:Record<string,typeof Binary> = {
+      "(": Binary,
       "{": Duplicator,
       "$(": Operator,
       "?(": Switch
@@ -460,7 +431,7 @@ function parse_code(code:string){
 
   function parse_atom(){
     let token = get_token()!
-    let t:typeof Terminal = Erase
+    let t:typeof Node = Erase
     let tag = ''
     if (token == '*'){t = Erase
     }else if (token.startsWith('@')) {
@@ -520,7 +491,7 @@ function parse_code(code:string){
   layout()
 }
 
-function mapall(fn:(x:Edge|Terminal)=>void){
+function mapall(fn:(x:Edge|Node)=>void){
   edges.forEach(fn);
   nodes.forEach(fn);
 }
@@ -550,7 +521,7 @@ function physics(){
   }else mapall(e=>e.physics())
 }
 
-function copy_graph(graph:Terminal, map:Map<Terminal, Terminal>):Terminal{
+function copy_graph(graph:Node, map:Map<Node, Node>):Node{
 
   if (map.has(graph)) return map.get(graph)!;
   // let new_node = new (graph.constructor as typeof Terminal)();
@@ -574,7 +545,7 @@ function merge_ports(a:Port, b:Port){
   if (ea && eb && ea != eb) new Edge(ea.other(a), eb.other(b))
 }
 
-function annihilate(a:Gate, b:Gate){
+function annihilate(a:Binary, b:Binary){
   console.log('annihilate', a, b);
   
   [LEFT,RIGHT].map(i=>merge_ports({node:a, side:i}, {node:b, side:i}))
@@ -586,8 +557,8 @@ function replaceport(newport:Port, oldport:Port){
   new Edge(newport, edge.other(oldport))
 }
 
-function commute(a:Gate, b:Gate){
-  let newgates:Gate[] = [0,0,1,1].map((h)=>new ((h==0?b:a).constructor as typeof Gate)((h==0?a:b).pos));  
+function commute(a:Binary, b:Binary){
+  let newgates:Binary[] = [0,0,1,1].map((h)=>new ((h==0?b:a).constructor as typeof Binary)((h==0?a:b).pos));  
   ([0,0,1,1]).map((h,i)=>{
     let m = i%2
     new Edge({node:newgates[h], side:[LEFT, RIGHT][m]}, {node:newgates[2+m], side:[LEFT, RIGHT][h]})
@@ -598,7 +569,7 @@ function commute(a:Gate, b:Gate){
   newgates.map(n=>anneal(10,n))
 }
 
-function erase(node:Gate, term:Terminal){
+function erase(node:Binary, term:Node){
   console.log('erase', node, term);
   
   anneal(20, ...[LEFT,RIGHT].map(side=>{
@@ -608,7 +579,7 @@ function erase(node:Gate, term:Terminal){
   }))
 }
 
-function call(fn_name:string, gate:Terminal){
+function call(fn_name:string, gate:Node){
 
   let fn = fn_definitons.get(fn_name)
   let mp = new Map()
@@ -627,7 +598,7 @@ function call(fn_name:string, gate:Terminal){
   }
 }
 
-function con(gat: typeof Gate, left:Connectable, right:Connectable){
+function con(gat: typeof Binary, left:Connectable, right:Connectable){
   let pack = new gat()
   new Edge({node:pack, side:LEFT}, left)
   new Edge({node:pack, side:RIGHT}, right)
@@ -641,7 +612,7 @@ function _switch(index:Num, arg:Switch){
   assert (ret.side == MAIN, `ret is not main`, ret.node)
   let era= new Erase(ret.node.pos)
   if (index.value == 0){
-    let c = con(Gate, ret, {node:era, side:MAIN})
+    let c = con(Binary, ret, {node:era, side:MAIN})
     c.pos = arg.pos
     new Edge(arr, c)
     for(let i=0;i<4;i++) anneal(100,c, era)
@@ -649,7 +620,7 @@ function _switch(index:Num, arg:Switch){
     assert (index.value != null, `index value is null`, index)
   }else{
     era.pos = index.pos
-    let g1 = new Gate(arg.pos)
+    let g1 = new Binary(arg.pos)
     new Edge(arr, g1)
     new Edge(era, {node:g1, side:LEFT})
     let g2 = new Switch()
@@ -691,15 +662,15 @@ function operate(Op:Operator, arg:Num){
   anneal(100,nd)
 }
 
-function interact(a:Terminal, b:Terminal){
-  if (a instanceof Gate) [a,b] = [b,a]
+function interact(a:Node, b:Node){
+  if (a instanceof Binary) [a,b] = [b,a]
   a.remove()
   if (a instanceof Ref) return call(a.tag, b)
   b.remove()
   let [consa, consb] = [a,b].map(n=>n.constructor.name)
   
-  if (b instanceof Gate){
-    if (a instanceof Gate){
+  if (b instanceof Binary){
+    if (a instanceof Binary){
       if (consa != consb) return commute(a,b)
       else return annihilate(a,b)
     }
@@ -709,7 +680,7 @@ function interact(a:Terminal, b:Terminal){
     if (b instanceof Switch){
       if (a instanceof Num) return _switch(a,b)
     }
-    if (!(a instanceof Gate)){
+    if (!(a instanceof Binary)){
       return erase(b,a)
     }
   }else return
@@ -728,8 +699,8 @@ function display(){
 
 let show_code = false;
 
-function anneal(d:number=100, ...nodes:Terminal[]){
-  function geten(node:Terminal){
+function anneal(d:number=100, ...nodes:Node[]){
+  function geten(node:Node){
     return node.energy() + node.connections.map(e=>e?.energy()??0).reduce((a,b)=>a+b)
   }
   for (let node of nodes){
@@ -757,8 +728,8 @@ setInterval(() => {
   display();
 }, 1000/30);
 
-let last_target:Terminal|undefined = undefined;
-let drag_target:Terminal|undefined = undefined;
+let last_target:Node|undefined = undefined;
+let drag_target:Node|undefined = undefined;
 let drag_start:Vec2|undefined = undefined;
 
 displaysvg.addEventListener('mousedown', e=>{
@@ -766,7 +737,7 @@ displaysvg.addEventListener('mousedown', e=>{
   if (e.target != displaysvg){
     let tid = (e.target as SVGElement).id;
     
-    last_target = nodes.find(n=>n.id == tid) as Terminal;
+    last_target = nodes.find(n=>n.id == tid) as Node;
     if (last_target) last_target.color(true);
     drag_target = last_target;
     console.log(last_target);
