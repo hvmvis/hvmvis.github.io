@@ -15,7 +15,8 @@ function assert (val:boolean, msg:any, ...els:El[]){
     try{
       display()
     }catch(error){
-      console.error(error)
+      console.error(els);
+      
     }
     running = false;
     throw new Error(msg)
@@ -68,13 +69,17 @@ export class El{
     edges = edges.filter(e=>!e.removed)
     merge_stack = merge_stack.filter(e=>!e.removed)
   }
-
+  unremove(){
+    this.removed = false;
+    (this.element instanceof Terminal ? node_group : edge_group).appendChild(this.element)
+  }
   color(active:boolean){
     this.element.setAttribute('stroke', active ? 'red':'var(--color)');
   }
 }
 
 
+type Connectable = Terminal | Port
 
 export class Terminal extends El{
   pos = v0
@@ -84,6 +89,8 @@ export class Terminal extends El{
   rotation: number = 0;
   dot:SVGElement
   tag:string = ''
+  side = MAIN
+  node = this
   constructor(pos:Vec2|null=null){
     super();
     this.dot = this.create_dot()
@@ -92,6 +99,13 @@ export class Terminal extends El{
     node_group.appendChild(this.element);
     nodes.push(this);
     this.color(false);
+  }
+
+
+  copy():Terminal{
+    let res = new (this.constructor as typeof Gate)(this.pos)
+    res.set_text(this.tag)
+    return res
   }
 
   set_text(tag:string){
@@ -144,7 +158,7 @@ export class Terminal extends El{
     };
     assert (this.connections.map(e=>e!=null).reduce((a,b)=>a && b), `not all connections are connected`, this)
     this.port_pos = [this.pos]
-    let princ = this.get_principal();
+    let princ = this.connections[MAIN]
     if (princ != null) {
       let goal = princ.other({node:this, side:MAIN}).node.pos
       this.rotation = Math.atan2(goal.y - this.pos.y, goal.x - this.pos.x);
@@ -155,9 +169,9 @@ export class Terminal extends El{
     this.element?.setAttribute('transform', `translate(${this.pos.x - cam_pos.x}, ${this.pos.y - cam_pos.y}) `)
   }
 
-  get_principal(){return this.connections[0]}
-  get_left(){return this.connections[1]}
-  get_right(){return this.connections[2]}
+  other(side:number){
+    return this.connections[side]?.other({node:this, side}) || null
+  }
 
   color(active:boolean){
     this.element.setAttribute('fill', active ? 'red' : 'black');
@@ -167,12 +181,14 @@ export class Terminal extends El{
   }
 }
 
+
 export class Gate extends Terminal {
   connections: [Edge | null, Edge | null, Edge | null]
   constructor(pos:null|Vec2=null){
     super(pos);
     this.connections = [null, null, null];
   }
+
 
   create_dot(){
     let dot = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
@@ -200,8 +216,6 @@ export class Gate extends Terminal {
   }
 }
 
-type OP = "ADD" | "SUB" | "MUL" | "DIV"
-
 class Erase extends Terminal{}
 
 class Ref extends Terminal{}
@@ -213,16 +227,57 @@ class Out extends Terminal{
   }
 }
 
+
+// <Numeric> ::=
+//  | <Number>
+//  | <Operator>
+// <Number> ::=
+//  | <Nat>
+//  | <Int>
+//  | <Float>
+// <Operator> ::=
+//  | "[" <Operation> "]" -- (unapplied)
+//  | "[" <Operation> <Number> "]" -- (partially applied)
+// <Operation> ::=
+//  | "+" -- (ADD)
+//  | "-" -- (SUB)
+//  | "*" -- (MUL)
+//  | "/" -- (DIV)
+//  | "%" -- (REM)
+//  | "=" -- (EQ)
+//  | "!" -- (NEQ)
+//  | "<" -- (LT)
+//  | ">" -- (GT)
+//  | "&" -- (AND)
+//  | "|" -- (OR)
+//  | "^" -- (XOR)
+//  | ">>" -- (SHR)
+//  | "<<" -- (SHL)
+//  | ":-" -- (FP_SUB)
+//  | ":/" -- (FP_DIV)
+//  | ":%" -- (FP_REM)
+//  | ":>>" -- (FP_SHR)
+//  | ":<<" -- (FP_SHL)
+
+
 class Num extends Terminal{
-  operator : OP | null = null
-  value : number
-  constructor(value:number, operator:OP|null= null){
+  operator : string | null = null
+  value : number | null
+  constructor(value:number|null, operator:string|null= null){
     super()
+    assert (!(value == null && operator == null), `both value and operator are null`)
     this.value = value
     this.operator = operator
-    this.set_text(`${operator ?? ''} ${value}`)
+    this.set_text(`#${operator ?? ''}${value}`)
+  }
+
+  copy(){
+    let res = new Num(this.value, this.operator)
+    res.pos = this.pos
+    return res
   }
 }
+
 
 class Duplicator extends Gate{
   color(active: boolean){
@@ -250,7 +305,7 @@ type Port = {node:Terminal, side:number}
 export class Edge extends El{
   start:Port
   end:Port
-  constructor(start:Port, end:Port){
+  constructor(start:Connectable, end:Connectable){
 
     assert (start.node.connections[start.side]==null, `start preconnected`, start.node)
     assert (end.node.connections[end.side]==null, `end preconnected`, end.node)
@@ -322,12 +377,12 @@ const fn_definitons: Map<string, Terminal> = new Map();
 
 function parse_code(code:string){
 
-  console.log(code);
-  
-
   mapall(n=>n.remove())
   fn_definitons.clear();
-  let toks:string[] = code.match(/[@,a-z,A-Z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~/g) || [];  
+  const toksplitter = /[@,a-z,A-Z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~|\+|-|\*|\/|%|=|!|&|\||\^|>>|<<|>|<|:-|:\/|:%|:>>|:<</g
+  let toks:string[] = code.match(toksplitter) || []
+  console.log(toks);
+  
   function get_token(){
     return toks.shift()
   }
@@ -343,8 +398,6 @@ function parse_code(code:string){
   }
 
   function parse_net(){
-    console.log('parse_net');
-    
     vartable.clear()
     const fn_name = get_token()!
     assert(fn_name.startsWith('@'), `no @`)
@@ -397,6 +450,14 @@ function parse_code(code:string){
     }else if (token.startsWith('@')) {
       t = Ref
       tag = token.slice(1)
+    // }else if (token.match(/^[0-9]+\.?[0-9]*$/)){
+
+      // let nd = new Num(token.includes('.') ? parseFloat(token) : parseInt(token))
+      // return {node:nd, side:MAIN}
+    }else if (token[0].match(/[0-9\[]/)){
+      console.log('parse_number', token);
+      
+      return parse_number(token)
     } else {
       if (vartable.has(token)){
         let nd = vartable.get(token)!
@@ -414,8 +475,33 @@ function parse_code(code:string){
     node.set_text(tag)
     return {node:node, side:MAIN}
   }
-  layout()
 
+  function parse_number(tok:string):Num{
+    const nat_re = /^[0-9]+$/
+    const int_re = /^[-\+]?[0-9]+$/
+    const float_re = /^[-\+]?[0-9]+\.[0-9]+$/
+
+    let v: number|null = null
+    let op = null
+
+    function getnum(tok:string){
+      if (tok.match(nat_re) || tok.match(int_re))v = parseInt(tok)
+      else if (tok.match(float_re))v = parseFloat(tok)
+    }
+    getnum(tok)
+    if (v == null){
+      assert (tok== '[', `no [`)
+      tok = get_token()!
+      getnum(tok)
+      if (v == null) op = tok
+      getnum(get_token()!)
+      assert(get_token() == ']', 'no ]')
+    }
+    console.log(v, op);
+    
+    return new Num(v, op)
+  }
+  layout()
 }
 
 function mapall(fn:(x:Edge|Terminal)=>void){
@@ -490,15 +576,17 @@ function commute(a:Gate, b:Gate){
     new Edge({node:newgates[h], side:[LEFT, RIGHT][m]}, {node:newgates[2+m], side:[LEFT, RIGHT][h]})
     replaceport({node:newgates[i], side:MAIN}, {node:h?b:a, side:m==0?LEFT:RIGHT})
   })
-  newgates.map(anneal)
+  anneal(...newgates)
 }
 
 function erase(node:Gate, term:Terminal){
-  [LEFT,RIGHT].map(side=>{
-    let newnode = new (term.constructor as typeof Terminal)(term.pos)
+  console.log('erase', node, term);
+  
+  anneal(...[LEFT,RIGHT].map(side=>{
+    let newnode = term.copy()
     replaceport({node:newnode, side:MAIN}, {node, side})
     return newnode
-  }).map(anneal)
+  }))
 }
 
 function call(fn_name:string, gate:Terminal){
@@ -520,27 +608,95 @@ function call(fn_name:string, gate:Terminal){
   }
 }
 
+function con(gat: typeof Gate, left:Connectable, right:Connectable){
+  let pack = new gat()
+  new Edge({node:pack, side:LEFT}, left)
+  new Edge({node:pack, side:RIGHT}, right)
+  return pack
+}
+
+function _switch(index:Num, arg:Switch){
+  let ret = arg.other(RIGHT)!
+  let arr = arg.other(LEFT)!
+  arg.connections.map(e=>e?.remove())
+  assert (ret.side == MAIN, `ret is not main`, ret.node)
+  let era= new Erase(ret.node.pos)
+  if (index.value == 0){
+    let c = con(Gate, ret, {node:era, side:MAIN})
+    c.pos = arg.pos
+    new Edge(arr, c)
+    for(let i=0;i<4;i++) anneal(c, era)
+  } else if (index.value == null){
+    assert (index.value != null, `index value is null`, index)
+  }else{
+    era.pos = index.pos
+    let g1 = new Gate(arg.pos)
+    new Edge(arr, g1)
+    new Edge(era, {node:g1, side:LEFT})
+    let g2 = new Switch()
+    g2.pos = arg.pos
+
+    let newnum = new Num(index.value-1)
+    newnum.pos = index.pos
+    new Edge(newnum, g2)
+    new Edge({node:g1, side:RIGHT}, {node:g2, side:LEFT})
+    new Edge({node:g2, side:RIGHT}, ret)
+    for(let i=0;i<4;i++) anneal(g1, g2, era, newnum)
+  }
+}
+
+function operate(Op:Operator, arg:Num){
+  let inp = Op.other(LEFT)! as Num
+  let out = Op.other(RIGHT)!
+  Op.connections.map(e=>e?.remove())
+  inp.node.remove()
+
+  let op = arg.operator || inp.operator!
+  assert (op != null, `no operator`, arg, inp)
+  let [v1, v2] = [arg.value, inp.value]
+  let nd:Num
+  if (v1 == null){
+    assert (v2 != null, `both values are null`, arg, inp)
+    nd = new Num(v2, op)
+  }else{
+    if (v2 == null){
+      nd = new Num(v1, op)
+    }else{
+      console.log(`calc ${v1} ${op} ${v2}`);
+      let res = eval(`${v1} ${op} ${v2}`)
+      nd = new Num(res)
+    }
+  }
+  new Edge({node:nd, side:MAIN}, out)
+  nd.pos = arg.pos
+  anneal(nd)
+}
+
 function interact(a:Terminal, b:Terminal){
-  
   if (a instanceof Gate) [a,b] = [b,a]
   a.remove()
   if (a instanceof Ref) return call(a.tag, b)
   b.remove()
   let [consa, consb] = [a,b].map(n=>n.constructor.name)
-  if (a instanceof Gate && b instanceof Gate){
-    if (consa != consb) commute(a,b)
-    else annihilate(a,b)
-  }else if (a instanceof Erase){
-    if (b instanceof Gate) erase(b, a)
-    else{}// void
-  }else if (a instanceof Ref){
-    call(a.tag, b)
-  }else{
-    console.log(a, b);
-    
-    throw new Error('invalid interaction')
-  }
-
+  
+  if (b instanceof Gate){
+    if (a instanceof Gate){
+      if (consa != consb) return commute(a,b)
+      else return annihilate(a,b)
+    }
+    if (b instanceof Operator){
+      if (a instanceof Num) return operate(b, a)
+    }
+    if (b instanceof Switch){
+      if (a instanceof Num) return _switch(a,b)
+    }
+    if (!(a instanceof Gate)){
+      return erase(b,a)
+    }
+  }else return
+  console.log(a, b);
+  
+  assert (false, `invalid interaction`, a, b)
 }
 
 function display(){
@@ -553,16 +709,18 @@ function display(){
 
 let show_code = false;
 
-function anneal(node:Terminal, d:number = 100){
+function anneal(...nodes:Terminal[]){
+  let d = 100
   function geten(node:Terminal){
     return node.energy() + node.connections.map(e=>e?.energy()??0).reduce((a,b)=>a+b)
   }
-  let starte = geten(node)
-  let startpos = node.pos
-
-  for (let i = 0; i < 4; i++){
-    node.pos = node.pos.add(Vec2.lookat(Math.random() * Math.PI * 2).mul(d*Math.random()))
-    if (geten(node) > starte) node.pos = startpos
+  for (let node of nodes){
+    let starte = geten(node)
+    let startpos = node.pos
+    for (let i = 0; i < 4; i++){
+      node.pos = node.pos.add(Vec2.lookat(Math.random() * Math.PI * 2).mul(d*Math.random()))
+      if (geten(node) > starte) node.pos = startpos
+    }
   }
 }
 function layout(){
