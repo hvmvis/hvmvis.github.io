@@ -551,7 +551,6 @@ function undo(){
   histitem.removed.map(n=>n.unremove())
   history.pop()
   toggle_running(false)
-  physics()
   update()
   display()
 }
