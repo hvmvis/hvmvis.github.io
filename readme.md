@@ -13,6 +13,7 @@ navigation:
 - `mouse drag` to move nodes around, selected nodes will try to interact first.
 - `command enter` to toggle code view
 - https://hvmvis.github.io?@main=({(a,R)(a,b)}(b,R)) add `?` + formula to the url to visaualize any net
+- < / > arrows to skip backward & forward in time
 
 ## contribution
 
