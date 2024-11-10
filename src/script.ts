@@ -539,6 +539,8 @@ function skip(){
   if (merge_stack.length == 0) return;
   const to_merge = merge_stack[0]
   interact(to_merge)
+  update()
+  display()
 }
 
 function undo(){
@@ -549,6 +551,8 @@ function undo(){
   histitem.removed.map(n=>n.unremove())
   history.pop()
   toggle_running(false)
+  physics()
+  update()
   display()
 }
 
