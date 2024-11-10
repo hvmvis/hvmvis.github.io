@@ -6,21 +6,34 @@ const codeeditor = document.querySelector('#codeblock') as HTMLElement;
 const codecontent = codeeditor.querySelector('#codecontent') as HTMLTextAreaElement;
 const errormsg = document.querySelector('#errormsg') as HTMLElement;
 
+const playbutton = document.querySelector('#playbutton') as HTMLDivElement;
+const skipbutton = document.querySelector('#skipbutton') as HTMLDivElement;
+
 document.addEventListener('keydown', e=>{
   if (e.code == 'Space'){
     if (!show_code){
       e.preventDefault();
-      running = !running;
+      toggle_running()
     }
   }
+  if (e.code == 'ArrowRight') skip()
   if (e.code == 'Enter' && e.metaKey) toggle_code();
 })
 
+
+let running = false;
+function toggle_running(value?:boolean){
+  if (value != undefined) running = value;
+  else running = !running;
+  playbutton.setAttribute('d', running ? 'M 0 0 L 0 10 L 4 10 L 4 0 Z M 8 0 L 8 10 L 12 10 L 12 0 Z' : 'M 0 0 L 0 10 L 10 5 Z' )
+}
+
+playbutton.parentElement!.addEventListener('click', ()=>toggle_running())
+skipbutton.parentElement!.addEventListener('click', ()=>skip())
+toggle_running()
+
 document.getElementById('codebutton')?.addEventListener('click', toggle_code)
-
-
 let merge_stack:Edge[] = []
-let running = true;
  
 function assert (val:boolean, msg:any, ...els:Visible[]){
   if (!val) {
@@ -31,7 +44,7 @@ function assert (val:boolean, msg:any, ...els:Visible[]){
       console.error(els);
       
     }
-    running = false;
+    toggle_running(false)
     throw new Error(msg)
   }
 }
@@ -123,6 +136,7 @@ export class Node extends Visible{
   set_text(tag:string){
     this.tag= tag
     let text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    text.setAttribute('focusable', 'false')
     text.setAttribute('x', '10')
     text.setAttribute('y', '5')
     text.textContent = tag
@@ -228,7 +242,7 @@ class Binary extends Node {
 
   color(active:boolean){
     super.color(active)
-    this.dot.setAttribute('fill', 'white')
+    this.dot.setAttribute('fill', active?'red':'white')
   }
 }
 
@@ -497,6 +511,14 @@ function mapall(fn:(x:Edge|Node)=>void){
 }
 
 function update(){mapall(n=>n.update())}
+
+
+function skip(){
+  if (merge_stack.length == 0) return;
+  const to_merge = merge_stack[0]
+  to_merge.remove()
+  interact(to_merge.start.node, to_merge.end.node)
+}
 
 function physics(){
   if (merge_stack.length > 0){

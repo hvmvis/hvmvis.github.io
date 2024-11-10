@@ -59,19 +59,33 @@
     #errormsg{
       color: red;
     }
+
+    #navigate{
+      position: absolute;
+      bottom: 2em;
+      width: 100%;
+      text-align: center;
+    }
   </style>
 
-  <div>
+  <div id="playground">
     <svg id="mySvg" width="800" height="600" ></svg>
-    <div id="codeblock">
-        <div id="files">
-        </div>
-        <textarea id="codecontent" rows="50" cols="50"></textarea>
-
-        <div id="errormsg"></div>
-      </div>
-      <button id="codebutton">&lt;code&gt; (command + enter)</button>
+    <div id="navigate">
+      <svg id="play" width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path id="playbutton" d="" fill="gray"/>
+      </svg>
+      <svg id="skip" width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path id="skipbutton" d="M 0 0 L 5 5 L 0 10" stroke="gray" stroke-width="2" fill="none"/>
+      </svg>
     </div>
+  </div>
+
+  <div id="codeblock">
+    <div id="files"></div>
+    <textarea id="codecontent" rows="50" cols="50"></textarea>
+    <div id="errormsg"></div>
+    <button id="codebutton">&lt;code&gt; (command + enter)</button>
+  </div>
   <!-- <script type="module" src="./script.ts"></script> -->
   <script type="module" src="./script.ts"></script>
 </body>
