@@ -65,17 +65,22 @@
       bottom: 2em;
       width: 100%;
       text-align: center;
+      user-select: none;
+    }
+
+    #navigate>svg{
+      cursor: pointer;
     }
   </style>
 
   <div id="playground">
     <svg id="mySvg" width="800" height="600" ></svg>
-    <div id="navigate">
+    <div id="navigate" focusable="false">
       <svg id="play" width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path id="playbutton" d="" fill="gray"/>
+        <path id="playbutton" d="" fill="gray" stroke="gray" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <svg id="skip" width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path id="skipbutton" d="M 0 0 L 5 5 L 0 10" stroke="gray" stroke-width="2" fill="none"/>
+        <path id="skipbutton" d="M 4 4 L 9 9 L 4 14" stroke="gray" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
   </div>

@@ -25,7 +25,7 @@ let running = false;
 function toggle_running(value?:boolean){
   if (value != undefined) running = value;
   else running = !running;
-  playbutton.setAttribute('d', running ? 'M 0 0 L 0 10 L 4 10 L 4 0 Z M 8 0 L 8 10 L 12 10 L 12 0 Z' : 'M 0 0 L 0 10 L 10 5 Z' )
+  playbutton.setAttribute('d', running ? 'M 4 4 L 4 14 L 8 14 L 8 4 Z M 12 4 L 12 14 L 16 14 L 16 4 Z' : 'M 4 4 L 4 14 L 14 9 Z' )
 }
 
 playbutton.parentElement!.addEventListener('click', ()=>toggle_running())
