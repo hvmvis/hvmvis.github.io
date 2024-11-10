@@ -8,6 +8,7 @@ const errormsg = document.querySelector('#errormsg') as HTMLElement;
 
 const playbutton = document.querySelector('#playbutton') as HTMLDivElement;
 const skipbutton = document.querySelector('#skipbutton') as HTMLDivElement;
+const prevbutton = document.querySelector('#prevbutton') as HTMLDivElement;
 
 document.addEventListener('keydown', e=>{
   if (e.code == 'Space'){
@@ -17,6 +18,7 @@ document.addEventListener('keydown', e=>{
     }
   }
   if (e.code == 'ArrowRight') skip()
+  if (e.code == 'ArrowLeft') undo()
   if (e.code == 'Enter' && e.metaKey) toggle_code();
 })
 
@@ -30,11 +32,14 @@ function toggle_running(value?:boolean){
 
 playbutton.parentElement!.addEventListener('click', ()=>toggle_running())
 skipbutton.parentElement!.addEventListener('click', ()=>skip())
+prevbutton.parentElement!.addEventListener('click', ()=>undo())
 toggle_running()
 
 document.getElementById('codebutton')?.addEventListener('click', toggle_code)
 let merge_stack:Edge[] = []
- 
+
+let history:{removed:Visible[], added:Visible[]}[] = [{removed:[], added:[]}];
+
 function assert (val:boolean, msg:any, ...els:Visible[]){
   if (!val) {
     els.forEach(el=>el.color(true))
@@ -86,6 +91,7 @@ export class Visible{
     this.id = Math.random().toString().slice(2);
     this.element = this.create_element();
     this.element.setAttribute('id', this.id);
+    history[history.length-1].added.push(this)
   }
   create_element():SVGElement{return document.createElementNS('http://www.w3.org/2000/svg', 'g')}
   remove(){
@@ -94,10 +100,10 @@ export class Visible{
     nodes = nodes.filter(n=>!n.removed)
     edges = edges.filter(e=>!e.removed)
     merge_stack = merge_stack.filter(e=>!e.removed)
+    history[history.length-1].removed.push(this)
   }
   unremove(){
     this.removed = false;
-    (this.element instanceof Node ? node_group : edge_group).appendChild(this.element)
   }
   color(active:boolean){
     this.element.setAttribute('stroke', active ? 'red':'var(--color)');
@@ -131,6 +137,12 @@ export class Node extends Visible{
     let res = new (this.constructor as typeof Binary)(this.pos)
     res.set_text(this.tag)
     return res
+  }
+
+  unremove(): void {
+    super.unremove();
+    node_group.appendChild(this.element);
+    nodes.push(this);
   }
 
   set_text(tag:string){
@@ -370,6 +382,16 @@ export class Edge extends Visible{
     super.remove();
     this.start.node.connections[this.start.side] = null;
     this.end.node.connections[this.end.side] = null;
+ 
+  }
+
+  unremove(): void {
+    super.unremove();
+    edge_group.appendChild(this.element);
+    edges.push(this);
+    this.start.node.connections[this.start.side] = this;
+    this.end.node.connections[this.end.side] = this;
+    if (this.start.side == MAIN && this.end.side == MAIN && !(this.start.node instanceof Out) && !(this.end.node instanceof Out)) merge_stack.push(this)
   }
 }
 
@@ -516,8 +538,18 @@ function update(){mapall(n=>n.update())}
 function skip(){
   if (merge_stack.length == 0) return;
   const to_merge = merge_stack[0]
-  to_merge.remove()
-  interact(to_merge.start.node, to_merge.end.node)
+  interact(to_merge)
+}
+
+function undo(){
+  if (history.length == 1) return;
+  let histitem = history.pop()!
+  history.push({removed:[], added:[]})
+  histitem.added.map(n=>{n.remove()})
+  histitem.removed.map(n=>n.unremove())
+  history.pop()
+  toggle_running(false)
+  display()
 }
 
 function physics(){
@@ -534,8 +566,7 @@ function physics(){
         a.pos = a.pos.add(diff.normalized().mul(-0.7))
         b.pos = b.pos.add(diff.normalized().mul(0.7))
         if (diff.len() < 20){
-          tomerge.remove()
-          interact(a,b)
+          interact(tomerge)
         }
       }
     })
@@ -546,8 +577,6 @@ function physics(){
 function copy_graph(graph:Node, map:Map<Node, Node>):Node{
 
   if (map.has(graph)) return map.get(graph)!;
-  // let new_node = new (graph.constructor as typeof Terminal)();
-  // new_node.set_text(graph.tag)
   let new_node = graph.copy()
   map.set(graph, new_node);
 
@@ -586,14 +615,11 @@ function commute(a:Binary, b:Binary){
     new Edge({node:newgates[h], side:[LEFT, RIGHT][m]}, {node:newgates[2+m], side:[LEFT, RIGHT][h]})
     replaceport({node:newgates[i], side:MAIN}, {node:h?b:a, side:m==0?LEFT:RIGHT})
   })
-  // for(let i=0; i<20; i++)anneal(...newgates)
-  // newgates.map(n=>anneal(n))
   newgates.map(n=>anneal(10,n))
 }
 
 function erase(node:Binary, term:Node){
   console.log('erase', node, term);
-  
   anneal(20, ...[LEFT,RIGHT].map(side=>{
     let newnode = term.copy()
     replaceport({node:newnode, side:MAIN}, {node, side})
@@ -684,7 +710,10 @@ function operate(Op:Operator, arg:Num){
   anneal(100,nd)
 }
 
-function interact(a:Node, b:Node){
+function interact(tomerge:Edge):void{
+  let [a,b] = [tomerge.start.node, tomerge.end.node]
+  history.push({added:[], removed:[]})
+  tomerge.remove()
   if (a instanceof Binary) [a,b] = [b,a]
   a.remove()
   if (a instanceof Ref) return call(a.tag, b)
@@ -706,8 +735,6 @@ function interact(a:Node, b:Node){
       return erase(b,a)
     }
   }else return
-  console.log(a, b);
-  
   assert (false, `invalid interaction`, a, b)
 }
 
