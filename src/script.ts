@@ -1,4 +1,5 @@
 const [MAIN, LEFT, RIGHT] = [0,1,2]
+const svgparent = document.getElementById('svgparent') as HTMLElement;
 const displaysvg = document.querySelector('svg#mySvg') as SVGElement;
 displaysvg.setAttribute('width', document.documentElement.clientWidth.toString())
 displaysvg.setAttribute('height', document.documentElement.clientHeight.toString())
@@ -21,7 +22,6 @@ document.addEventListener('keydown', e=>{
   if (e.code == 'ArrowLeft') undo()
   if (e.code == 'Enter' && e.metaKey) toggle_code();
 })
-
 
 let running = false;
 function toggle_running(value?:boolean){
@@ -258,10 +258,8 @@ class Binary extends Node {
   }
 }
 
-abstract class Nullary extends Node{}
-
+class Nullary extends Node{}
 class Erase extends Nullary{}
-
 class Ref extends Nullary{}
 
 class Out extends Nullary{
@@ -405,26 +403,27 @@ function reset(){
   merge_stack = []
 }
 
+let parsed_code = ''
 
 function parse_code(code:string){
 
   reset()
-  const toksplitter = /[@,a-z,A-Z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~|\+|-|\*|\/|%|=|!|&|\||\^|>>|<<|>|<|:-|:\/|:%|:>>|:<</g
+  parsed_code = ''
+  const toksplitter = /@?[a-z,A-Z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~|\+|-|\*|\/|%|=|!|&|\||\^|>>|<<|>|<|:-|:\/|:%|:>>|:<</g
   let toks:string[] = code.match(toksplitter) || []
   console.log(toks)
 
   function get_token(){
-    return toks.shift()
+    const res = toks.shift()
+    parsed_code += res
+    return res
   }
   function peek_token() {return toks[0]}
 
   const vartable:Map<string, Node> = new Map();
-  parse_book()
-
-  function parse_book(){
-    while (toks.length > 0){
-      parse_net()
-    }
+  while (toks.length > 0){
+    parse_net()
+    if (toks.length > 0) parsed_code += '\n\n'
   }
 
   function parse_net(){
@@ -438,7 +437,9 @@ function parse_code(code:string){
     let a = parse_tree()
     new Edge({node:head, side:MAIN}, a)
     while (peek_token() == '&'){
+      parsed_code += '\n  '
       get_token()
+      parsed_code += ' '
       parse_redex()
     }
   }
@@ -464,6 +465,7 @@ function parse_code(code:string){
     get_token()
     let node = new brackets[tok]()
     let a = parse_tree()
+    parsed_code += ' '
     new Edge({node, side:LEFT}, a)
     let b = parse_tree()
     new Edge({node, side:RIGHT}, b)
@@ -480,13 +482,7 @@ function parse_code(code:string){
     }else if (token.startsWith('@')) {
       t = Ref
       tag = token.slice(1)
-    // }else if (token.match(/^[0-9]+\.?[0-9]*$/)){
-
-      // let nd = new Num(token.includes('.') ? parseFloat(token) : parseInt(token))
-      // return {node:nd, side:MAIN}
     }else if (token[0].match(/[0-9\[]/)){
-      console.log('parse_number', token);
-      
       return parse_number(token)
     } else {
       if (vartable.has(token)){
@@ -720,8 +716,6 @@ function operate(Op:Operator, arg:Num){
   anneal(100,nd)
 }
 
-
-
 function interact(tomerge:Edge):void{
 
   let [a,b] = [tomerge.start.node, tomerge.end.node]
@@ -741,7 +735,6 @@ function interact(tomerge:Edge):void{
 }
 
 function display(){
-  console.log(nodes[1].constructor.name);
   assert(!edges.map(e=>e.removed).reduce((a,b)=>a||b), `edges are removed`)
   assert(!nodes.map(n=>n.removed).reduce((a,b)=>a||b), `nodes are removed`)
   mapall(n=>n.display());
@@ -809,22 +802,23 @@ displaysvg.addEventListener('mousemove', e=>{
 document.addEventListener('mouseup', ()=> drag_start = drag_target = undefined)
 
 {
-  let code = '@main = res\n  & {res a} ~ (b c)'
+  let code = example_nets[0][1]
   if (localStorage['code'] != undefined) code = localStorage['code']
   if (window.location.search){
     code = window.location.search.slice(1).replace(/,/g, ' ')
+    code = decodeURIComponent(code)
     window.history.pushState({}, document.title, window.location.pathname);
+    set_code(code, true)
+  }else{
+    set_code(code)
   }
-  set_code(code)
 }
 
-function set_code(code:string){
-  code = decodeURIComponent(code)
-  code = ("\n"+code).replace(/ +/g, ' ')
-  code = code.replace(/\n ?@/g, '@@').replace(/\s+/g, ' ')
-  code = code.replace(/@@/g, '\n\n@').replace(/&/g, '\n  &')
-  codecontent.value = code
+function set_code(code:string, format=false){
+
   parse_code(code)
+  if (format)code = parsed_code
+  codecontent.value = code
   localStorage['code'] = code
   update()
   display()
@@ -832,14 +826,14 @@ function set_code(code:string){
 
 function toggle_code(){
   if (!show_code){
-    displaysvg.style.display = 'none';
+    svgparent.style.display = 'none';
     codeeditor.style.display = 'flex';
     codecontent.focus();
   }else{
     let code = codecontent.value!     
     set_code(code)
     codeeditor.style.display = 'none';
-    displaysvg.style.display = 'block';
+    svgparent.style.display = 'block';
   }
   show_code = !show_code;
 }
