@@ -38,7 +38,7 @@ toggle_running()
 document.getElementById('codebutton')?.addEventListener('click', toggle_code)
 let merge_stack:Edge[] = []
 
-let history:{removed:Visible[], added:Visible[]}[] = [{removed:[], added:[]}];
+let history:{removed:Visible[], added:Visible[]}[] = []
 
 function assert (val:boolean, msg:any, ...els:Visible[]){
   if (!val) {
@@ -397,15 +397,23 @@ export class Edge extends Visible{
 
 const fn_definitons: Map<string, Node> = new Map();
 
+function reset(){
+  mapall(n=>n.remove())
+  fn_definitons.clear();
+  history = [{removed:[], added:[]}]
+  nodes = []
+  edges = []
+  merge_stack = []
+}
+
 
 function parse_code(code:string){
 
-  mapall(n=>n.remove())
-  fn_definitons.clear();
+  reset()
   const toksplitter = /[@,a-z,A-Z,0-9]+|\$\(|\?\(|\(|\)|\{|\}|\[|\]|=|&|\*|~|\+|-|\*|\/|%|=|!|&|\||\^|>>|<<|>|<|:-|:\/|:%|:>>|:<</g
   let toks:string[] = code.match(toksplitter) || []
-  console.log(toks);
-  
+  console.log(toks)
+
   function get_token(){
     return toks.shift()
   }
@@ -744,7 +752,7 @@ function interact(tomerge:Edge):void{
 function display(){
   assert(!edges.map(e=>e.removed).reduce((a,b)=>a||b), `edges are removed`)
   assert(!nodes.map(n=>n.removed).reduce((a,b)=>a||b), `nodes are removed`)
-  
+
   mapall(n=>n.display());
   displaysvg.innerHTML = edges.map(e=>e.element.outerHTML).join('') + nodes.map(n=>n.element.outerHTML).join('')
 }
@@ -827,6 +835,8 @@ function set_code(code:string){
   codecontent.value = code
   parse_code(code)
   localStorage['code'] = code
+  update()
+  display()
 }
 
 function toggle_code(){
