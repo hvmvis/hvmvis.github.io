@@ -33,7 +33,7 @@ function toggle_running(value?:boolean){
 playbutton.parentElement!.addEventListener('click', ()=>toggle_running())
 skipbutton.parentElement!.addEventListener('click', ()=>skip())
 prevbutton.parentElement!.addEventListener('click', ()=>undo())
-toggle_running()
+toggle_running(true)
 
 document.getElementById('codebutton')?.addEventListener('click', toggle_code)
 let merge_stack:Edge[] = []
@@ -288,7 +288,6 @@ class Num extends Nullary{
     return res
   }
 }
-
 
 class Connector extends Binary{}
 
@@ -721,38 +720,30 @@ function operate(Op:Operator, arg:Num){
   anneal(100,nd)
 }
 
+
+
 function interact(tomerge:Edge):void{
+
   let [a,b] = [tomerge.start.node, tomerge.end.node]
   history.push({added:[], removed:[]})
   tomerge.remove()
   if (a instanceof Binary) [a,b] = [b,a]
   a.remove()
-  if (a instanceof Ref) return call(a.tag, b)
+  if (a instanceof Ref && b instanceof Binary && !(b instanceof Duplicator)) return call(a.tag, b)
   b.remove()
-  let [consa, consb] = [a,b].map(n=>n.constructor.name)
-  
-  if (b instanceof Binary){
-    if (a instanceof Binary){
-      if (consa != consb) return commute(a,b)
-      else return annihilate(a,b)
-    }
-    if (b instanceof Operator){
-      if (a instanceof Num) return operate(b, a)
-    }
-    if (b instanceof Switch){
-      if (a instanceof Num) return _switch(a,b)
-    }
-    if (!(a instanceof Binary)){
-      return erase(b,a)
-    }
-  }else return
-  assert (false, `invalid interaction`, a, b)
+
+  if (a instanceof Ref && b instanceof Binary && !(b instanceof Duplicator)) return call(a.tag, b)
+  if (a.constructor.name == b.constructor.name) return annihilate(a as Binary, b as Binary)
+  if (a instanceof Binary && b instanceof Binary) return commute(a, b)
+  if (a instanceof Num && b instanceof Operator) return operate(b, a)
+  if (a instanceof Num && b instanceof Switch) return _switch(a, b)
+  if (b instanceof Binary) return erase(b,a)
 }
 
 function display(){
+  console.log(nodes[1].constructor.name);
   assert(!edges.map(e=>e.removed).reduce((a,b)=>a||b), `edges are removed`)
   assert(!nodes.map(n=>n.removed).reduce((a,b)=>a||b), `nodes are removed`)
-
   mapall(n=>n.display());
   displaysvg.innerHTML = edges.map(e=>e.element.outerHTML).join('') + nodes.map(n=>n.element.outerHTML).join('')
 }
