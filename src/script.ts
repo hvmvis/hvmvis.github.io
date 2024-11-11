@@ -802,7 +802,7 @@ displaysvg.addEventListener('mousemove', e=>{
 document.addEventListener('mouseup', ()=> drag_start = drag_target = undefined)
 
 {
-  let code = example_nets[0][1]
+  let code = example_nets[2][1]
   if (localStorage['code'] != undefined) code = localStorage['code']
   if (window.location.search){
     code = window.location.search.slice(1).replace(/,/g, ' ')
