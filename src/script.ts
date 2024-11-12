@@ -11,6 +11,13 @@ const playbutton = document.querySelector('#playbutton') as HTMLDivElement;
 const skipbutton = document.querySelector('#skipbutton') as HTMLDivElement;
 const prevbutton = document.querySelector('#prevbutton') as HTMLDivElement;
 
+codeeditor.addEventListener('keydown', e=>{
+  if (e.key=='Tab'){
+    e.preventDefault();
+    // codecontent.value += '  '
+  }
+})
+
 document.addEventListener('keydown', e=>{
   if (e.code == 'Space'){
     if (!show_code){
@@ -224,6 +231,7 @@ class Binary extends Node {
   connections: [Edge | null, Edge | null, Edge | null]
   constructor(pos:null|Vec2=null){
     super(pos);
+    assert (this.constructor != Binary, `Binary is abstract`, this)
     this.connections = [null, null, null];
   }
 
@@ -328,7 +336,9 @@ export class Edge extends Visible{
     edges.push(this);
     this.start.node.connections[this.start.side] = this;
     this.end.node.connections[this.end.side] = this;
-    if (this.start.side == MAIN && this.end.side == MAIN && !(this.start.node instanceof Out) && !(this.end.node instanceof Out)) merge_stack.push(this)
+    if (this.start.side == MAIN && this.end.side == MAIN){
+      if (!(this.start.node instanceof Out) && !(this.end.node instanceof Out))merge_stack.push(this)
+    }
   }
 
   create_element(): SVGElement {
@@ -455,7 +465,7 @@ function parse_code(code:string){
     let tok = peek_token();
 
     let brackets:Record<string,typeof Binary> = {
-      "(": Binary,
+      "(": Connector,
       "{": Duplicator,
       "$(": Operator,
       "?(": Switch
@@ -528,6 +538,7 @@ function parse_code(code:string){
     return new Num(v, op)
   }
   layout()
+  
 }
 
 function mapall(fn:(x:Edge|Node)=>void){
@@ -615,6 +626,8 @@ function replaceport(newport:Port, oldport:Port){
 }
 
 function commute(a:Binary, b:Binary){
+  console.log('commute', a, b);
+  
   let newgates:Binary[] = [0,0,1,1].map((h)=>new ((h==0?b:a).constructor as typeof Binary)((h==0?a:b).pos));  
   ([0,0,1,1]).map((h,i)=>{
     let m = i%2
@@ -633,23 +646,34 @@ function erase(node:Binary, term:Node){
   }))
 }
 
-function call(fn_name:string, gate:Node){
+function call(ref:Ref, caller:Node){
+  console.log('call', ref, caller);
 
+  const fn_name = ref.tag
+
+  console.log(call, fn_name, caller);
+  
   let fn = fn_definitons.get(fn_name)
   let mp = new Map()
 
   let head = copy_graph(fn!, mp)
-  replaceport({node:gate, side:MAIN}, {node:head, side:MAIN})
+  replaceport({node:caller, side:MAIN}, {node:head, side:MAIN})
   head.remove()
   
   for (let n of mp.values()){
-    n.pos = n.pos.add(gate.pos).sub(fn!.pos)
+    n.pos = n.pos.add(caller.pos).sub(fn!.pos)
   }
+
+  console.log(caller.other(MAIN));
+  console.log(mp);
+  
   for (let i=0; i<4; i++){
     for (let n of mp.values()){
-      anneal(20,n)
+      n.color(true)
+      anneal(100,n)
     }
   }
+
 }
 
 function con(gat: typeof Binary, left:Connectable, right:Connectable){
@@ -690,20 +714,32 @@ function _switch(index:Num, arg:Switch){
 }
 
 function operate(Op:Operator, arg:Num){
-  let inp = Op.other(LEFT)! as Num
+
+  let inp = Op.other(LEFT)!
   let out = Op.other(RIGHT)!
+  if (!(inp.node instanceof Num)){ // operate 2
+    const op = Op.copy()
+    new Edge({node:op, side:LEFT}, arg)
+    new Edge({node:op, side:RIGHT}, out)
+    new Edge({node:op, side:MAIN}, inp)
+    return
+  }
   Op.connections.map(e=>e?.remove())
   inp.node.remove()
 
-  let op = arg.operator || inp.operator!
-  assert (op != null, `no operator`, arg, inp)
-  let [v1, v2] = [arg.value, inp.value]
+  let op = arg.operator || inp.node.operator
+  assert (op != null, `no operator`, arg, inp.node)  
+
+  let [v1, v2] = [arg.value, inp.node.value]
   let nd:Num
   if (v1 == null){
-    assert (v2 != null, `both values are null`, arg, inp)
+    console.log('v1 null');
+    
+    assert (v2 != null, `both values are null`, arg, inp.node)
     nd = new Num(v2, op)
   }else{
     if (v2 == null){
+      console.log('v2 null');
       nd = new Num(v1, op)
     }else{
       console.log(`calc ${v1} ${op} ${v2}`);
@@ -723,13 +759,22 @@ function interact(tomerge:Edge):void{
   tomerge.remove()
   if (a instanceof Binary) [a,b] = [b,a]
   a.remove()
-  if (a instanceof Ref && b instanceof Binary && !(b instanceof Duplicator)) return call(a.tag, b)
+  if (a instanceof Ref && (b instanceof Binary && !(b instanceof Duplicator))) return call(a, b)
   b.remove()
 
-  if (a instanceof Ref && b instanceof Binary && !(b instanceof Duplicator)) return call(a.tag, b)
-  if (a.constructor.name == b.constructor.name) return annihilate(a as Binary, b as Binary)
+  console.log('interact', a, b);
+  
+  if (a instanceof Ref && b instanceof Duplicator) return erase (b,a)
+  console.log(1);
+  if (a instanceof Ref && b instanceof Binary) return call(a, b)
+  console.log(1);
+  if (a instanceof b.constructor) return annihilate(a as Binary, b as Binary)
+  console.log(1);
   if (a instanceof Binary && b instanceof Binary) return commute(a, b)
+  console.log(1);
   if (a instanceof Num && b instanceof Operator) return operate(b, a)
+  console.log('not operating', a,b);
+  
   if (a instanceof Num && b instanceof Switch) return _switch(a, b)
   if (b instanceof Binary) return erase(b,a)
 }
@@ -782,6 +827,8 @@ displaysvg.addEventListener('mousedown', e=>{
     let tid = (e.target as SVGElement).id;
     
     last_target = nodes.find(n=>n.id == tid) as Node;
+    console.log(last_target);
+    
     if (last_target) last_target.color(true);
     drag_target = last_target;
     console.log(last_target);
