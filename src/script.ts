@@ -312,8 +312,8 @@ class Switch extends Binary{
 }
 
 class Operator extends Binary{
-  constructor(){
-    super()
+  constructor(pos:Vec2|null=null){
+    super(pos)
     this.set_text('$')
   }
 }
@@ -614,7 +614,6 @@ function merge_ports(a:Port, b:Port){
 }
 
 function annihilate(a:Binary, b:Binary){
-  console.log('annihilate', a, b);
   
   [LEFT,RIGHT].map(i=>merge_ports({node:a, side:i}, {node:b, side:i}))
 }
@@ -626,7 +625,6 @@ function replaceport(newport:Port, oldport:Port){
 }
 
 function commute(a:Binary, b:Binary){
-  console.log('commute', a, b);
   
   let newgates:Binary[] = [0,0,1,1].map((h)=>new ((h==0?b:a).constructor as typeof Binary)((h==0?a:b).pos));  
   ([0,0,1,1]).map((h,i)=>{
@@ -638,7 +636,6 @@ function commute(a:Binary, b:Binary){
 }
 
 function erase(node:Binary, term:Node){
-  console.log('erase', node, term);
   anneal(20, ...[LEFT,RIGHT].map(side=>{
     let newnode = term.copy()
     replaceport({node:newnode, side:MAIN}, {node, side})
@@ -647,7 +644,6 @@ function erase(node:Binary, term:Node){
 }
 
 function call(ref:Ref, caller:Node){
-  console.log('call', ref, caller);
 
   const fn_name = ref.tag
 
@@ -661,7 +657,8 @@ function call(ref:Ref, caller:Node){
   head.remove()
   
   for (let n of mp.values()){
-    n.pos = n.pos.add(caller.pos).sub(fn!.pos)
+    if (n == head) continue;
+    n.pos = n.pos.add(caller.pos.sub(head.pos))
   }
 
   console.log(caller.other(MAIN));
@@ -669,8 +666,7 @@ function call(ref:Ref, caller:Node){
   
   for (let i=0; i<4; i++){
     for (let n of mp.values()){
-      n.color(true)
-      anneal(100,n)
+      anneal(20,n)
     }
   }
 
