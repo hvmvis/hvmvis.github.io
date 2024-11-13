@@ -686,7 +686,7 @@ function _switch(index:Num, arg:Switch){
   assert (ret.side == MAIN, `ret is not main`, ret.node)
   let era= new Erase(ret.node.pos)
   if (index.value == 0){
-    let c = con(Binary, ret, {node:era, side:MAIN})
+    let c = con(Connector, ret, {node:era, side:MAIN})
     c.pos = arg.pos
     new Edge(arr, c)
     for(let i=0;i<4;i++) anneal(100,c, era)
@@ -694,7 +694,7 @@ function _switch(index:Num, arg:Switch){
     assert (index.value != null, `index value is null`, index)
   }else{
     era.pos = index.pos
-    let g1 = new Binary(arg.pos)
+    let g1 = new Connector(arg.pos)
     new Edge(arr, g1)
     new Edge(era, {node:g1, side:LEFT})
     let g2 = new Switch()
