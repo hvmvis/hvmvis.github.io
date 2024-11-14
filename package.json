@@ -1,5 +1,5 @@
 {
-  "name": "2dorbital",
+  "name": "hvm_vis",
   "version": "1.0.0",
   "description": "![Net Visualization](net.svg)",
   "main": "index.js",
